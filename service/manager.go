@@ -30,7 +30,7 @@ func NewManagerService(
 	return ManagerService{activityRepository: a, orderRepository: o, tradeRepository: t}
 }
 
-func (m *ManagerService) HandlePickup(topic string, data []byte) {
+func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	// Get latest activity
 	activity := &activity.Activity{}
 	pipeline := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
@@ -49,8 +49,8 @@ func (m *ManagerService) HandlePickup(topic string, data []byte) {
 	}
 
 	// Proses Engine response
-	if topic == "ENGINE" {
-		e, err := m.parseEngine(data)
+	if msg.Topic == "ENGINE" {
+		e, err := m.parseEngine(msg.Value)
 		if err != nil {
 			return
 		}
@@ -78,8 +78,8 @@ func (m *ManagerService) HandlePickup(topic string, data []byte) {
 	}
 
 	// Process cancelled orders
-	if topic == "CANCELLED_ORDERS" {
-		c, err := m.parseCancelledOrder(data)
+	if msg.Topic == "CANCELLED_ORDERS" {
+		c, err := m.parseCancelledOrder(msg.Value)
 		if err != nil {
 			return
 		}
@@ -130,7 +130,7 @@ func (m *ManagerService) HandlePickup(topic string, data []byte) {
 		return
 	}
 
-	go m.publish()
+	m.kafkaConn.Commit(msg)
 }
 
 func (m *ManagerService) parseEngine(data []byte) (*engine.EngineResponse, error) {
@@ -151,14 +151,6 @@ func (m *ManagerService) parseCancelledOrder(data []byte) (*kafka.CancelledOrder
 	}
 
 	return e, nil
-}
-
-func (m *ManagerService) publish() {
-	messages := []kafkago.Message{}
-
-	if len(messages) > 0 {
-		m.kafkaConn.Publish(messages...)
-	}
 }
 
 func (m *ManagerService) manager() {}
