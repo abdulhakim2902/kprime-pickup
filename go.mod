@@ -3,8 +3,7 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.20
-	github.com/gorilla/mux v1.8.0
+	git.devucc.name/dependencies/utilities v1.0.21
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.40
@@ -18,6 +17,9 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.0 // indirect
+	github.com/hashicorp/go-memdb v1.3.4 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

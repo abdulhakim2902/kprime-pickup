@@ -7,9 +7,10 @@ import (
 	"pickup/app"
 	"pickup/datasources/kafka"
 	"pickup/datasources/mongo"
+	"pickup/service"
 
 	utilitiesLog "git.devucc.name/dependencies/utilities/commons/log"
-	"github.com/gorilla/mux"
+	"git.devucc.name/dependencies/utilities/repository/mongodb"
 )
 
 var logger = utilitiesLog.Logger
@@ -23,25 +24,39 @@ func Start() {
 	}
 
 	// Connect Database
-	_, err = mongo.InitConnection(app.Config.Mongo.URL)
+	db, err := mongo.InitConnection(app.Config.Mongo.URL)
 	if err != nil {
 		log.Fatal("Failed to initialize database!")
 	}
 
 	// Initialize Consumer
-	_, err = kafka.InitConnection(app.Config.Kafka.BrokerURL, topics)
+	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics)
 	if err != nil {
 		log.Fatal("Failed to initialize kafka connection!", err)
 	}
 
-	router := mux.NewRouter()
-	run(router)
+	// Initialize Repository
+	or := mongodb.NewOrderRepository(db)
+	tr := mongodb.NewTradeRepository(db)
+	ar := mongodb.NewActivityRepository(db)
+
+	// Initialize Service
+	managerService := service.NewManagerService(k, ar, or, tr)
+
+	// Subscribe to kafka
+	k.Subscribe(managerService.HandlePickup)
+
+	// Close kafka connection
+	k.CloseConnection()
+
+	// Run server
+	run()
 }
 
-func run(router *mux.Router) {
+func run() {
 	port := fmt.Sprintf(":%v", app.Config.HTTP.Port)
 	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.Port)
-	err := http.ListenAndServe(port, router)
+	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
