@@ -27,7 +27,7 @@ func NewManagerService(
 	o interfaces.Repository[order.Order],
 	t interfaces.Repository[trade.Trade],
 ) ManagerService {
-	return ManagerService{activityRepository: a, orderRepository: o, tradeRepository: t}
+	return ManagerService{kafkaConn: k, activityRepository: a, orderRepository: o, tradeRepository: t}
 }
 
 func (m *ManagerService) HandlePickup(msg kafkago.Message) {
@@ -71,7 +71,13 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 			orders = append(orders, e.Matches.TakerOrder)
 		}
 
-		activity.New(e.Matches)
+		data := map[string]interface{}{
+			"takerOrders": e.Matches.TakerOrder,
+			"makerOrders": e.Matches.Trades,
+			"trades":      e.Matches.Trades,
+		}
+
+		activity.New(data)
 
 		kNonce = e.Nonce
 		mNonce = activity.Nonce

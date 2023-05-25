@@ -41,10 +41,10 @@ func Start() {
 	ar := mongodb.NewActivityRepository(db)
 
 	// Initialize Service
-	managerService := service.NewManagerService(k, ar, or, tr)
+	ms := service.NewManagerService(k, ar, or, tr)
 
 	// Subscribe to kafka
-	k.Subscribe(managerService.HandlePickup)
+	k.Subscribe(ms.HandlePickup)
 
 	// Close kafka connection
 	k.CloseConnection()
