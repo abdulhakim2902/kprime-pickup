@@ -5,16 +5,9 @@ import (
 	"time"
 
 	"git.devucc.name/dependencies/utilities/commons/log"
-	"git.devucc.name/dependencies/utilities/models/order"
 
 	"github.com/segmentio/kafka-go"
 )
-
-type CancelledOrderData struct {
-	Query []*order.Order `json:"query"`
-	Data  []*order.Order `json:"data"`
-	Nonce int64          `json:"nonce"`
-}
 
 var logger = log.Logger
 var groupID = "gateway-group"
