@@ -71,13 +71,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 			orders = append(orders, e.Matches.TakerOrder)
 		}
 
-		data := map[string]interface{}{
-			"takerOrders": e.Matches.TakerOrder,
-			"makerOrders": e.Matches.Trades,
-			"trades":      e.Matches.Trades,
-		}
-
-		activity.New(data)
+		activity.New(e.Matches)
 
 		kNonce = e.Nonce
 		mNonce = activity.Nonce
@@ -149,8 +143,8 @@ func (m *ManagerService) parseEngine(data []byte) (*engine.EngineResponse, error
 	return e, nil
 }
 
-func (m *ManagerService) parseCancelledOrder(data []byte) (*kafka.CancelledOrderData, error) {
-	e := &kafka.CancelledOrderData{}
+func (m *ManagerService) parseCancelledOrder(data []byte) (*order.CancelledOrder, error) {
+	e := &order.CancelledOrder{}
 	err := json.Unmarshal(data, e)
 	if err != nil {
 		return nil, err
