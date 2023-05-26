@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"time"
 
 	"git.devucc.name/dependencies/utilities/commons/log"
 
@@ -14,12 +13,9 @@ var groupID = "gateway-group"
 
 func InitConsumer(url string) *kafka.Reader {
 	config := kafka.ReaderConfig{
-		Brokers:        []string{url},
-		GroupID:        groupID,
-		GroupTopics:    []string{"ENGINE", "CANCELLED_ORDERS"},
-		MinBytes:       10e3, // 10KB
-		MaxBytes:       10e6, // 10MB
-		CommitInterval: time.Second,
+		Brokers:     []string{url},
+		GroupID:     groupID,
+		GroupTopics: []string{"ENGINE", "CANCELLED_ORDERS"},
 	}
 
 	return kafka.NewReader(config)
