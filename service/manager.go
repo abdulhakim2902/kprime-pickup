@@ -3,16 +3,21 @@ package service
 import (
 	"encoding/json"
 	"pickup/datasources/kafka"
+	"time"
 
+	"git.devucc.name/dependencies/utilities/commons/log"
 	"git.devucc.name/dependencies/utilities/interfaces"
 	"git.devucc.name/dependencies/utilities/models/activity"
 	"git.devucc.name/dependencies/utilities/models/engine"
 	"git.devucc.name/dependencies/utilities/models/order"
 	"git.devucc.name/dependencies/utilities/models/trade"
+	"git.devucc.name/dependencies/utilities/types"
 	"go.mongodb.org/mongo-driver/bson"
 
 	kafkago "github.com/segmentio/kafka-go"
 )
+
+var logger = log.Logger
 
 type ManagerService struct {
 	kafkaConn          *kafka.Kafka
@@ -55,20 +60,25 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 			return
 		}
 
+		receivedTime := time.Since(e.CreatedAt).Microseconds()
+		logger.Infof("Received from matching engine: %v microseconds", receivedTime)
+
 		if e.Nonce <= 0 {
 			return
 		}
 
-		if len(e.Matches.MakerOrders) > 0 {
-			orders = e.Matches.MakerOrders
-		}
+		if e.Status != types.ORDER_REJECTED {
+			if len(e.Matches.MakerOrders) > 0 {
+				orders = e.Matches.MakerOrders
+			}
 
-		if len(e.Matches.Trades) > 0 {
-			trades = e.Matches.Trades
-		}
+			if len(e.Matches.Trades) > 0 {
+				trades = e.Matches.Trades
+			}
 
-		if e.Matches.TakerOrder != nil {
-			orders = append(orders, e.Matches.TakerOrder)
+			if e.Matches.TakerOrder != nil {
+				orders = append(orders, e.Matches.TakerOrder)
+			}
 		}
 
 		activity.New(e.Matches)
