@@ -21,12 +21,7 @@ var logger = log.Logger
 func InitConnection(uri string) (*Database, error) {
 	logger.Infof("Database connecting...")
 
-	credential := options.Credential{
-		Username: app.Config.Mongo.User,
-		Password: app.Config.Mongo.Password,
-	}
-
-	client, err := mongo.NewClient(options.Client().ApplyURI(uri).SetAuth(credential))
+	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err
 	}
