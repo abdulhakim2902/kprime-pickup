@@ -37,9 +37,12 @@ func (k *Kafka) Subscribe(cb func(kafka.Message)) {
 	}()
 }
 
-func (k *Kafka) Commit(msg kafka.Message) {
+func (k *Kafka) Commit(msg kafka.Message) error {
 	e := k.reader.CommitMessages(context.Background(), msg)
 	if e != nil {
 		logger.Errorf("Failed to commit message!")
+		return e
 	}
+
+	return nil
 }

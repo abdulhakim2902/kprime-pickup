@@ -20,7 +20,7 @@ func InitProducer(url string) *kafka.Writer {
 func (k *Kafka) Publish(messages ...kafka.Message) error {
 	err := k.writer.WriteMessages(context.Background(), messages...)
 	if err != nil {
-		logger.Errorf("Failed to write message!")
+		logger.Errorf("Failed to write message!", err)
 		return err
 	}
 

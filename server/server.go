@@ -14,7 +14,7 @@ import (
 )
 
 var logger = utilitiesLog.Logger
-var topics = "NEW_ORDER,ENGINE,ORDERBOOK,CANCELLED_ORDER"
+var topics = "ENGINE,CANCELLED_ORDER,ENGINE_SAVED"
 
 func Start() {
 	// Initialize ENV

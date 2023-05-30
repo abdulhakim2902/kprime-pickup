@@ -12,6 +12,7 @@ import (
 	"git.devucc.name/dependencies/utilities/models/order"
 	"git.devucc.name/dependencies/utilities/models/trade"
 	"git.devucc.name/dependencies/utilities/types"
+	"git.devucc.name/dependencies/utilities/types/cancelled_reason"
 	"go.mongodb.org/mongo-driver/bson"
 
 	kafkago "github.com/segmentio/kafka-go"
@@ -40,6 +41,10 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	activity := &activity.Activity{}
 	pipeline := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
 	activities := m.activityRepository.Aggregate(pipeline)
+
+	// Cancelled detail
+	totalCancelled := 0
+	filter := bson.M{}
 
 	// Initialize data
 	orders := []*order.Order{}
@@ -98,20 +103,32 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 			return
 		}
 
-		if len(c.Data) > 0 {
-			orders = c.Data
-		}
-
 		activity.New(c.Data)
 
 		kNonce = c.Nonce
 		mNonce = activity.Nonce
+
+		totalCancelled = c.Total
+		filter = c.Data.(bson.M)
 	}
 
 	// Compare nonce from mongo with nonce from kafka
 	if mNonce != kNonce {
 		m.manager()
 		return
+	}
+
+	if totalCancelled > 0 {
+		now := time.Now()
+		update := bson.M{
+			"$set": bson.M{
+				"status":          types.CANCELLED,
+				"cancelledReason": cancelled_reason.USER_REQUEST,
+				"updatedAt":       now,
+				"cancelledAt":     now,
+			},
+		}
+		m.orderRepository.UpdateAll(filter, update)
 	}
 
 	for _, o := range orders {
@@ -140,7 +157,16 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 		return
 	}
 
-	m.kafkaConn.Commit(msg)
+	err = m.kafkaConn.Commit(msg)
+	if err != nil {
+		m.manager()
+		return
+	}
+
+	m.kafkaConn.Publish(kafkago.Message{
+		Topic: "ENGINE_SAVED",
+		Value: msg.Value,
+	})
 }
 
 func (m *ManagerService) parseEngine(data []byte) (*engine.EngineResponse, error) {
