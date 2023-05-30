@@ -31,8 +31,6 @@ type Kafka struct {
 type Mongo struct {
 	Database string `yaml:"mongo_database" env:"MONGO_DATABASE" env-default:"option_exchange"`
 	URL      string `yaml:"mongo_url" env:"MONGO_URL" env-default:"mongodb://localhost:27017"`
-	User     string `yaml:"mongo_user" env:"MONGO_USER" env-default:"root"`
-	Password string `yaml:"password" env:"MONGO_PASSWORD" env-default:"root"`
 }
 
 // LoadConfig loads configuration from the given list of paths and populates it into the Config variable.

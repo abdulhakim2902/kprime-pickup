@@ -26,7 +26,7 @@ func Start() {
 	// Connect Database
 	db, err := mongo.InitConnection(app.Config.Mongo.URL)
 	if err != nil {
-		log.Fatal("Failed to initialize database!")
+		log.Fatal("Failed to initialize database!", err)
 	}
 
 	// Initialize Consumer
