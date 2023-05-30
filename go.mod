@@ -3,7 +3,7 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.24
+	git.devucc.name/dependencies/utilities v1.0.29
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.40
