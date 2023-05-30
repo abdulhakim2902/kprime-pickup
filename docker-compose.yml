@@ -1,0 +1,26 @@
+version: '3.9'
+
+networks:
+  database:
+    name: database
+    driver: bridge
+  pickup:
+    name: database
+    external: true
+
+services:
+  pickup:
+    image: 'git.devucc.name:5050/undercurrent-tech/k-prime/pickup:dev'
+    container_name: 'pickup'
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - ACCESS_TOKEN=${ACCESS_TOKEN}
+    networks:
+      - database
+      - pickup
+    env_file:
+      - .env
+    ports:
+      - 8081:8081
