@@ -1,0 +1,22 @@
+stages:
+  - code_update
+  - build
+
+pull_code_dev:
+  stage: code_update
+  script:
+    - cd $path_deploy && git stash && git fetch && git reset --hard $CI_COMMIT_SHA
+    - cd $path_deploy && cp ${env_dev} .env
+  only:
+    - development
+  tags:
+    - development
+
+build_dev:
+  stage: build
+  script:
+    - cd $path_deploy && docker-compose -f docker-compose.yml up -d
+  only:
+    - development
+  tags:
+    - development
