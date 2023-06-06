@@ -3,7 +3,7 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.29
+	git.devucc.name/dependencies/utilities v1.0.32
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.40
@@ -31,6 +31,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/quickfixgo/quickfix v0.7.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect

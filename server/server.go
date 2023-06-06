@@ -10,35 +10,39 @@ import (
 	"pickup/service"
 
 	utilitiesLog "git.devucc.name/dependencies/utilities/commons/log"
+	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/repository/mongodb"
 )
+
+const PICKUP logs.LoggerType = "PICKUP"
 
 var logger = utilitiesLog.Logger
 var topics = "ENGINE,CANCELLED_ORDER,ENGINE_SAVED"
 
 func Start() {
+	// Logger
+	logs.InitLogger(PICKUP)
+
 	// Initialize ENV
-	err := app.LoadConfig()
-	if err != nil {
-		log.Fatal("Failed to load ENV")
+	if err := app.LoadConfig(); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to load ENV!")
 	}
 
 	// Connect Database
-	db, err := mongo.InitConnection(app.Config.Mongo.URL)
-	if err != nil {
-		log.Fatal("Failed to initialize database!", err)
+	if err := mongo.InitConnection(app.Config.Mongo.URL); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to connect database!")
 	}
 
 	// Initialize Consumer
 	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics)
 	if err != nil {
-		log.Fatal("Failed to initialize kafka connection!", err)
+		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}
 
 	// Initialize Repository
-	or := mongodb.NewOrderRepository(db)
-	tr := mongodb.NewTradeRepository(db)
-	ar := mongodb.NewActivityRepository(db)
+	or := mongodb.NewOrderRepository(mongo.Database)
+	tr := mongodb.NewTradeRepository(mongo.Database)
+	ar := mongodb.NewActivityRepository(mongo.Database)
 
 	// Initialize Service
 	ms := service.NewManagerService(k, ar, or, tr)
@@ -58,6 +62,6 @@ func run() {
 	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.Port)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
-		log.Fatal(err)
+		logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port %s", app.Config.HTTP.Port))
 	}
 }

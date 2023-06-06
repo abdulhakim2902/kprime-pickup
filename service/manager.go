@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"git.devucc.name/dependencies/utilities/commons/log"
+	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/interfaces"
 	"git.devucc.name/dependencies/utilities/models/activity"
 	"git.devucc.name/dependencies/utilities/models/engine"
@@ -60,8 +61,9 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 
 	// Proses Engine response
 	if msg.Topic == "ENGINE" {
-		e, err := m.parseEngine(msg.Value)
-		if err != nil {
+		e := &engine.EngineResponse{}
+		if err := json.Unmarshal(msg.Value, e); err != nil {
+			logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
 			return
 		}
 
@@ -69,6 +71,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 		logger.Infof("Received from matching engine: %v microseconds", receivedTime)
 
 		if e.Nonce <= 0 {
+			logs.Log.Error().Msg("Nonce less than equal zero!")
 			return
 		}
 
@@ -94,12 +97,14 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 
 	// Process cancelled orders
 	if msg.Topic == "CANCELLED_ORDERS" {
-		c, err := m.parseCancelledOrder(msg.Value)
-		if err != nil {
+		c := &order.CancelledOrder{}
+		if err := json.Unmarshal(msg.Value, c); err != nil {
+			logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
 			return
 		}
 
 		if c.Nonce <= 0 {
+			logs.Log.Error().Msg("Nonce less than equal zero!")
 			return
 		}
 
@@ -115,6 +120,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	// Compare nonce from mongo with nonce from kafka
 	if mNonce != kNonce {
 		m.manager()
+		logs.Log.Error().Msg("Invalid nonce!")
 		return
 	}
 
@@ -137,6 +143,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 		_, err := m.orderRepository.FindAndModify(filter, update)
 		if err != nil {
 			m.manager()
+			logs.Log.Error().Err(err).Msg("Failed to create order!")
 			return
 		}
 	}
@@ -147,6 +154,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 		_, err := m.tradeRepository.FindAndModify(filter, update)
 		if err != nil {
 			m.manager()
+			logs.Log.Error().Err(err).Msg("Failed to create trade!")
 			return
 		}
 	}
@@ -154,19 +162,22 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	_, err := m.activityRepository.FindAndModify(bson.M{"_id": activity.ID}, bson.M{"$set": activity})
 	if err != nil {
 		m.manager()
+		logs.Log.Error().Err(err).Msg("Failed to create activity!")
 		return
 	}
 
-	err = m.kafkaConn.Commit(msg)
-	if err != nil {
+	if err := m.kafkaConn.Commit(msg); err != nil {
 		m.manager()
+		logs.Log.Error().Err(err).Msg("Failed to commit message!")
 		return
 	}
 
-	m.kafkaConn.Publish(kafkago.Message{
+	if err := m.kafkaConn.Publish(kafkago.Message{
 		Topic: "ENGINE_SAVED",
 		Value: msg.Value,
-	})
+	}); err != nil {
+		logs.Log.Error().Err(err).Msg("Failed to publish message!")
+	}
 }
 
 func (m *ManagerService) parseEngine(data []byte) (*engine.EngineResponse, error) {
