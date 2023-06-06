@@ -12,39 +12,40 @@ import (
 	"git.devucc.name/dependencies/utilities/commons/log"
 )
 
-type Database struct {
+type MongoDB struct {
 	Client *mongo.Client
 }
 
+var Database *MongoDB
 var logger = log.Logger
 
-func InitConnection(uri string) (*Database, error) {
+func InitConnection(uri string) error {
 	logger.Infof("Database connecting...")
 
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	err = client.Connect(ctx)
 
 	defer cancel()
 
-	if err != nil {
-		return nil, err
+	if err := client.Connect(ctx); err != nil {
+		return err
 	}
 
-	err = client.Ping(context.Background(), readpref.Primary())
-	if err != nil {
-		return nil, err
+	if err := client.Ping(context.Background(), readpref.Primary()); err != nil {
+		return err
 	}
 
 	logger.Infof("Database connected!")
 
-	return &Database{client}, nil
+	Database = &MongoDB{Client: client}
+
+	return nil
 }
 
-func (db *Database) InitCollection(collectionName string) *mongo.Collection {
+func (db *MongoDB) InitCollection(collectionName string) *mongo.Collection {
 	return db.Client.Database(app.Config.Mongo.Database).Collection(collectionName)
 }
