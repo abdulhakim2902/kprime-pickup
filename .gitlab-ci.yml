@@ -15,6 +15,7 @@ pull_code_dev:
 build_dev:
   stage: build
   script:
+    - export ACCESS_TOKEN=${access_token}
     - cd $path_deploy && docker-compose -f docker-compose.yml up -d
   only:
     - development
