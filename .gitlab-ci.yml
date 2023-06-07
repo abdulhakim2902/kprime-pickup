@@ -1,6 +1,8 @@
 stages:
   - code_update
+  - install_packages
   - build
+  - deploy
 
 pull_code_dev:
   stage: code_update
@@ -12,12 +14,30 @@ pull_code_dev:
   tags:
     - development
 
-build_dev:
-  stage: build
+install_packages_dev:
+  stage: install_packages
   script:
-    - export ACCESS_TOKEN=${access_token}
-    - cd $path_deploy && docker-compose -f docker-compose.yml up -d
+    - cd $path_deploy && go mod download
   only:
     - development
   tags:
     - development
+
+build_dev:
+  stage: build
+  script:
+    - cd $path_deploy && go build main.go
+  only:
+    - development
+  tags:
+    - development
+
+deploy_dev:
+  stage: deploy
+  script:
+    - sudo systemctl restart kprime-pickup.service
+  only:
+    - development
+  tags:
+    - development
+    
