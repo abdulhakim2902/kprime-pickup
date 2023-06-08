@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"pickup/datasources/kafka"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"git.devucc.name/dependencies/utilities/types"
 	"git.devucc.name/dependencies/utilities/types/cancelled_reason"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	kafkago "github.com/segmentio/kafka-go"
 )
@@ -37,167 +39,228 @@ func NewManagerService(
 	return ManagerService{kafkaConn: k, activityRepository: a, orderRepository: o, tradeRepository: t}
 }
 
-func (m *ManagerService) HandlePickup(msg kafkago.Message) {
+func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 	// Get latest activity
-	activity := &activity.Activity{}
+	activity := &activity.Activity{ID: primitive.NewObjectID(), Nonce: 0, CreatedAt: time.Now()}
 	pipeline := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
 	activities := m.activityRepository.Aggregate(pipeline)
-
-	// Cancelled detail
-	totalCancelled := 0
-	filter := bson.M{}
-
-	// Initialize data
-	orders := []*order.Order{}
-	trades := []*trade.Trade{}
-	kNonce := int64(0)
-	mNonce := int64(0)
 
 	// Reassign nonce from mongodb
 	if len(activities) > 0 {
 		activity = activities[0]
-		mNonce = activity.Nonce
 	}
 
-	// Proses Engine response
-	if msg.Topic == "ENGINE" {
-		e := &engine.EngineResponse{}
-		if err := json.Unmarshal(msg.Value, e); err != nil {
-			logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
-			return
-		}
+	// Cancelled detail
+	totalCancelled := 0
 
-		receivedTime := time.Since(e.CreatedAt).Microseconds()
-		logger.Infof("Received from matching engine: %v microseconds", receivedTime)
+	// Initialize data
+	orders := []*order.Order{}
+	trades := []*trade.Trade{}
 
-		if e.Nonce <= 0 {
-			logs.Log.Error().Msg("Nonce less than equal zero!")
-			return
-		}
+	nonce := int64(0)
+	mongoNonce := activity.Nonce + 1
 
-		if e.Status != types.ORDER_REJECTED {
-			if len(e.Matches.MakerOrders) > 0 {
-				orders = e.Matches.MakerOrders
-			}
+	var data interface{}
+	var er *engine.EngineResponse
+	var co *order.CancelledOrder
 
-			if len(e.Matches.Trades) > 0 {
-				trades = e.Matches.Trades
-			}
-
-			if e.Matches.TakerOrder != nil {
-				orders = append(orders, e.Matches.TakerOrder)
-			}
-		}
-
-		activity.New(e.Matches)
-
-		kNonce = e.Nonce
-		mNonce = activity.Nonce
+	switch msg.Topic {
+	case "ENGINE":
+		er, nonce, _ = m.processEngine(msg.Value)
+		orders, trades = m.validateOrders(er)
+		data = m.activityData(msg.Topic, er)
+	case "CANCELLED_ORDERS":
+		co, nonce, _ = m.processCancelledOrders(msg.Value)
+		data = m.activityData(msg.Topic, co)
+		totalCancelled = co.Total
+	default:
+		return nil
 	}
 
-	// Process cancelled orders
-	if msg.Topic == "CANCELLED_ORDERS" {
-		c := &order.CancelledOrder{}
-		if err := json.Unmarshal(msg.Value, c); err != nil {
-			logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
-			return
-		}
-
-		if c.Nonce <= 0 {
-			logs.Log.Error().Msg("Nonce less than equal zero!")
-			return
-		}
-
-		activity.New(c.Data)
-
-		kNonce = c.Nonce
-		mNonce = activity.Nonce
-
-		totalCancelled = c.Total
-		filter = c.Data.(bson.M)
-	}
-
-	// Compare nonce from mongo with nonce from kafka
-	if mNonce != kNonce {
-		m.manager()
+	if nonce != mongoNonce {
 		logs.Log.Error().Msg("Invalid nonce!")
-		return
+		return m.manager(msg)
 	}
 
-	if totalCancelled > 0 {
-		now := time.Now()
-		update := bson.M{
-			"$set": bson.M{
-				"status":          types.CANCELLED,
-				"cancelledReason": cancelled_reason.USER_REQUEST,
-				"updatedAt":       now,
-				"cancelledAt":     now,
-			},
-		}
-		m.orderRepository.UpdateAll(filter, update)
+	// Update activity detail
+	activity.ID = primitive.NewObjectID()
+	activity.Nonce = mongoNonce
+	activity.Data = data
+	activity.CreatedAt = time.Now()
+
+	if err := m.updateCancelledOrders(data, totalCancelled); err != nil {
+		return m.manager(msg)
 	}
 
-	for _, o := range orders {
-		filter := bson.M{"_id": o.ID}
-		update := bson.M{"$set": o}
-		_, err := m.orderRepository.FindAndModify(filter, update)
-		if err != nil {
-			m.manager()
-			logs.Log.Error().Err(err).Msg("Failed to create order!")
-			return
-		}
+	if err := m.updateOrders(orders); err != nil {
+		return m.manager(msg)
 	}
 
-	for _, t := range trades {
-		filter := bson.M{"_id": t.ID}
-		update := bson.M{"$set": t}
-		_, err := m.tradeRepository.FindAndModify(filter, update)
-		if err != nil {
-			m.manager()
-			logs.Log.Error().Err(err).Msg("Failed to create trade!")
-			return
-		}
-	}
-
-	_, err := m.activityRepository.FindAndModify(bson.M{"_id": activity.ID}, bson.M{"$set": activity})
-	if err != nil {
-		m.manager()
-		logs.Log.Error().Err(err).Msg("Failed to create activity!")
-		return
+	if err := m.updateTrades(trades); err != nil {
+		return m.manager(msg)
 	}
 
 	if err := m.kafkaConn.Commit(msg); err != nil {
-		m.manager()
-		logs.Log.Error().Err(err).Msg("Failed to commit message!")
-		return
+		return m.manager(msg)
 	}
 
-	if err := m.kafkaConn.Publish(kafkago.Message{
-		Topic: "ENGINE_SAVED",
-		Value: msg.Value,
-	}); err != nil {
-		logs.Log.Error().Err(err).Msg("Failed to publish message!")
+	if err := m.kafkaConn.Publish(kafkago.Message{Topic: "ENGINE_SAVED", Value: msg.Value}); err != nil && msg.Topic == "ENGINE" {
+		return m.manager(msg)
 	}
+
+	if _, err := m.activityRepository.FindAndModify(bson.M{"_id": activity.ID}, bson.M{"$set": activity}); err != nil {
+		return m.manager(msg)
+	}
+
+	return nil
 }
 
-func (m *ManagerService) parseEngine(data []byte) (*engine.EngineResponse, error) {
+func (m *ManagerService) processEngine(v []byte) (*engine.EngineResponse, int64, error) {
 	e := &engine.EngineResponse{}
-	err := json.Unmarshal(data, e)
-	if err != nil {
-		return nil, err
+	if err := json.Unmarshal(v, e); err != nil {
+		logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
+
+		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "ENGINE", Value: v}); err != nil {
+			return nil, 0, err
+		}
+
+		return nil, 0, err
 	}
 
-	return e, nil
-}
+	receivedTime := time.Since(e.CreatedAt).Microseconds()
+	logger.Infof("Received from matching engine: %v microseconds", receivedTime)
 
-func (m *ManagerService) parseCancelledOrder(data []byte) (*order.CancelledOrder, error) {
-	e := &order.CancelledOrder{}
-	err := json.Unmarshal(data, e)
-	if err != nil {
-		return nil, err
+	if e.Nonce <= 0 {
+		logs.Log.Error().Msg("Nonce less than equal zero!")
+
+		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "ENGINE", Value: v}); err != nil {
+			return nil, 0, err
+		}
+
+		return nil, 0, errors.New("NonceLessThanEqualZero")
 	}
 
-	return e, nil
+	return e, e.Nonce, nil
 }
 
-func (m *ManagerService) manager() {}
+func (m *ManagerService) processCancelledOrders(v []byte) (*order.CancelledOrder, int64, error) {
+	c := &order.CancelledOrder{}
+	if err := json.Unmarshal(v, c); err != nil {
+		logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
+		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
+			return nil, 0, err
+		}
+
+		return nil, 0, err
+	}
+
+	if c.Nonce <= 0 {
+		logs.Log.Error().Msg("Nonce less than equal zero!")
+
+		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
+			return nil, 0, err
+		}
+
+		return nil, 0, errors.New("NonceLessThanEqualZero")
+	}
+
+	return c, c.Nonce, nil
+}
+
+func (m *ManagerService) updateCancelledOrders(f interface{}, n int) error {
+	if n <= 0 {
+		return nil
+	}
+
+	now := time.Now()
+	filter := f.(bson.M)
+	update := bson.M{
+		"$set": bson.M{
+			"status":          types.CANCELLED,
+			"cancelledReason": cancelled_reason.USER_REQUEST,
+			"updatedAt":       now,
+			"cancelledAt":     now,
+		},
+	}
+	m.orderRepository.UpdateAll(filter, update)
+	return nil
+}
+
+func (m *ManagerService) activityData(t string, r interface{}) (data interface{}) {
+	if r == nil {
+		return data
+	}
+
+	switch t {
+	case "ENGINE":
+		e := r.(*engine.EngineResponse)
+		return e.Matches
+	case "CANCELLED_ORDERS":
+		c := r.(*order.CancelledOrder)
+		return c.Data
+	default:
+		return r
+	}
+}
+
+func (m *ManagerService) updateOrders(o []*order.Order) error {
+	for _, order := range o {
+		filter := bson.M{"_id": order.ID}
+		update := bson.M{"$set": order}
+
+		if _, err := m.orderRepository.FindAndModify(filter, update); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *ManagerService) updateTrades(t []*trade.Trade) error {
+	for _, trade := range t {
+		filter := bson.M{"_id": trade.ID}
+		update := bson.M{"$set": trade}
+
+		if _, err := m.tradeRepository.FindAndModify(filter, update); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *ManagerService) validateOrders(e *engine.EngineResponse) (orders []*order.Order, trades []*trade.Trade) {
+	if e == nil {
+		return orders, trades
+	}
+
+	if e.Status == types.ORDER_REJECTED {
+		return orders, trades
+	}
+
+	if len(e.Matches.MakerOrders) > 0 {
+		orders = e.Matches.MakerOrders
+	}
+
+	if len(e.Matches.Trades) > 0 {
+		trades = e.Matches.Trades
+	}
+
+	if e.Matches.TakerOrder != nil {
+		orders = append(orders, e.Matches.TakerOrder)
+	}
+
+	return orders, trades
+}
+
+func (m *ManagerService) manager(msg kafkago.Message) error {
+	if err := m.kafkaConn.Commit(msg); err != nil {
+		return err
+	}
+
+	if err := m.kafkaConn.Publish(kafkago.Message{Topic: msg.Topic, Value: msg.Value}); err != nil {
+		logs.Log.Err(err).Msg("Failed to publish")
+	}
+
+	return nil
+}

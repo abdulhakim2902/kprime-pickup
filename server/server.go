@@ -9,14 +9,12 @@ import (
 	"pickup/datasources/mongo"
 	"pickup/service"
 
-	utilitiesLog "git.devucc.name/dependencies/utilities/commons/log"
 	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/repository/mongodb"
 )
 
 const PICKUP logs.LoggerType = "PICKUP"
 
-var logger = utilitiesLog.Logger
 var topics = "ENGINE,CANCELLED_ORDER,ENGINE_SAVED"
 
 func Start() {
@@ -39,7 +37,7 @@ func Start() {
 		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}
 
-	// Initialize Repository
+	// Initialize MongoDB Repository
 	or := mongodb.NewOrderRepository(mongo.Database)
 	tr := mongodb.NewTradeRepository(mongo.Database)
 	ar := mongodb.NewActivityRepository(mongo.Database)
