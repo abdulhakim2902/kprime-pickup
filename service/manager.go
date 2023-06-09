@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"pickup/datasources/collector"
 	"pickup/datasources/kafka"
 	"time"
 
@@ -64,13 +65,16 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 	var er *engine.EngineResponse
 	var co *order.CancelledOrder
 
+	var userId string
+	var clOrdId string
+
 	switch msg.Topic {
 	case "ENGINE":
-		er, nonce, _ = m.processEngine(msg.Value)
+		er, nonce, userId, clOrdId, _ = m.processEngine(msg.Value)
 		orders, trades = m.validateOrders(er)
 		data = m.activityData(msg.Topic, er)
 	case "CANCELLED_ORDERS":
-		co, nonce, _ = m.processCancelledOrders(msg.Value)
+		co, nonce, userId, clOrdId, _ = m.processCancelledOrders(msg.Value)
 		data = m.activityData(msg.Topic, co)
 		totalCancelled = co.Total
 	default:
@@ -79,7 +83,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 
 	if nonce != mongoNonce {
 		logs.Log.Error().Msg("Invalid nonce!")
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	// Update activity detail
@@ -89,42 +93,44 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 	activity.CreatedAt = time.Now()
 
 	if err := m.updateCancelledOrders(data, totalCancelled); err != nil {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	if err := m.updateOrders(orders); err != nil {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	if err := m.updateTrades(trades); err != nil {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	if err := m.kafkaConn.Commit(msg); err != nil {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	if err := m.kafkaConn.Publish(kafkago.Message{Topic: "ENGINE_SAVED", Value: msg.Value}); err != nil && msg.Topic == "ENGINE" {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
 
 	if _, err := m.activityRepository.FindAndModify(bson.M{"_id": activity.ID}, bson.M{"$set": activity}); err != nil {
-		return m.manager(msg)
+		return m.manager(msg, userId, clOrdId)
 	}
+
+	go collector.PublishedMetricCounter(msg.Topic, userId, clOrdId, true)
 
 	return nil
 }
 
-func (m *ManagerService) processEngine(v []byte) (*engine.EngineResponse, int64, error) {
-	e := &engine.EngineResponse{}
+func (m *ManagerService) processEngine(v []byte) (e *engine.EngineResponse, nonce int64, userId, clOrdId string, err error) {
+	e = &engine.EngineResponse{}
 	if err := json.Unmarshal(v, e); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
 
 		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "ENGINE", Value: v}); err != nil {
-			return nil, 0, err
+			return nil, 0, userId, clOrdId, err
 		}
 
-		return nil, 0, err
+		return nil, 0, userId, clOrdId, err
 	}
 
 	receivedTime := time.Since(e.CreatedAt).Microseconds()
@@ -134,37 +140,48 @@ func (m *ManagerService) processEngine(v []byte) (*engine.EngineResponse, int64,
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
 		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "ENGINE", Value: v}); err != nil {
-			return nil, 0, err
+			return nil, 0, userId, clOrdId, err
 		}
 
-		return nil, 0, errors.New("NonceLessThanEqualZero")
+		return nil, 0, userId, clOrdId, errors.New("NonceLessThanEqualZero")
 	}
 
-	return e, e.Nonce, nil
+	userId = e.Matches.TakerOrder.UserID
+	clOrdId = e.Matches.TakerOrder.ClOrdID
+
+	go collector.ConsumedMetricCounter("ENGINE", userId, clOrdId)
+
+	return e, e.Nonce, userId, clOrdId, nil
 }
 
-func (m *ManagerService) processCancelledOrders(v []byte) (*order.CancelledOrder, int64, error) {
-	c := &order.CancelledOrder{}
+func (m *ManagerService) processCancelledOrders(v []byte) (c *order.CancelledOrder, nonce int64, userId, clOrdId string, err error) {
+	c = &order.CancelledOrder{}
 	if err := json.Unmarshal(v, c); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
 		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
-			return nil, 0, err
+			return nil, 0, userId, clOrdId, err
 		}
 
-		return nil, 0, err
+		return nil, 0, userId, clOrdId, err
 	}
 
 	if c.Nonce <= 0 {
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
 		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
-			return nil, 0, err
+			return nil, 0, userId, clOrdId, err
 		}
 
-		return nil, 0, errors.New("NonceLessThanEqualZero")
+		return nil, 0, userId, userId, errors.New("NonceLessThanEqualZero")
 	}
 
-	return c, c.Nonce, nil
+	query := c.Data.(map[string]interface{})
+	userId = query["userId"].(string)
+	clOrdId = query["clOrdId"].(string)
+
+	go collector.ConsumedMetricCounter("CANCELLED_ORDERS", userId, clOrdId)
+
+	return c, c.Nonce, userId, clOrdId, nil
 }
 
 func (m *ManagerService) updateCancelledOrders(f interface{}, n int) error {
@@ -264,14 +281,16 @@ func (m *ManagerService) validateOrders(e *engine.EngineResponse) (orders []*ord
 	return orders, trades
 }
 
-func (m *ManagerService) manager(msg kafkago.Message) error {
-	if err := m.kafkaConn.Commit(msg); err != nil {
-		return err
-	}
+func (m *ManagerService) manager(msg kafkago.Message, userId, clOrdId string) error {
+	go collector.PublishedMetricCounter(msg.Topic, userId, clOrdId, false)
+	// TODO: Handle error
+	// if err := m.kafkaConn.Commit(msg); err != nil {
+	// 	return err
+	// }
 
-	if err := m.kafkaConn.Publish(kafkago.Message{Topic: msg.Topic, Value: msg.Value}); err != nil {
-		logs.Log.Err(err).Msg("Failed to publish")
-	}
+	// if err := m.kafkaConn.Publish(kafkago.Message{Topic: msg.Topic, Value: msg.Value}); err != nil {
+	// 	logs.Log.Err(err).Msg("Failed to publish")
+	// }
 
 	return nil
 }

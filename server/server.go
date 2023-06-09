@@ -5,11 +5,14 @@ import (
 	"log"
 	"net/http"
 	"pickup/app"
+	"pickup/datasources/collector"
 	"pickup/datasources/kafka"
 	"pickup/datasources/mongo"
 	"pickup/service"
 	"strconv"
 	"time"
+
+	"git.devucc.name/dependencies/utilities/commons/metrics"
 
 	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/repository/mongodb"
@@ -76,14 +79,30 @@ func Start() {
 	k.CloseConnection()
 
 	// Run server
+	serveMetric()
 	run()
 }
 
 func run() {
-	port := fmt.Sprintf(":%v", app.Config.HTTP.Port)
-	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.Port)
+	port := fmt.Sprintf(":%v", app.Config.HTTP.ServerPort)
+	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.ServerPort)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
-		logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port %s", app.Config.HTTP.Port))
+		logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port %s", app.Config.HTTP.ServerPort))
 	}
+}
+
+func serveMetric() {
+	go func() {
+		m := metrics.NewMetrics()
+		m.RegisterCollector(
+			collector.IncomingCounter,
+			collector.SuccessCounter,
+			collector.RequestDurationHistogram,
+		)
+
+		if err := m.Serve(); err != nil {
+			logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port%s!", app.Config.MetricsPort))
+		}
+	}()
 }

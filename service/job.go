@@ -127,7 +127,7 @@ func (js *JobService) updateSystem(s *system.System, en, mn int) {
 		logs.Log.Info().Msg(msg)
 
 		if s.Status.Engine == types.OFF {
-			msg := fmt.Sprintf("Nonce exceeding up to %s", app.Config.NonceDiff)
+			msg := fmt.Sprintf("Nonce is over %s", app.Config.NonceDiff)
 			data := map[string]int{"engine": en, "mongo": mn}
 			logs.Log.Info().Any("nonce", data).Msg(msg)
 		}
