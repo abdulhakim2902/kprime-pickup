@@ -8,9 +8,12 @@ import (
 	"pickup/datasources/kafka"
 	"pickup/datasources/mongo"
 	"pickup/service"
+	"strconv"
+	"time"
 
 	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/repository/mongodb"
+	"github.com/go-co-op/gocron"
 )
 
 const PICKUP logs.LoggerType = "PICKUP"
@@ -37,13 +40,34 @@ func Start() {
 		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}
 
+	// Initialize Scheduler
+	loc, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		loc = time.UTC
+	}
+
+	i, err := strconv.Atoi(app.Config.MonitoringInterval)
+	if err != nil {
+		i = 1000
+	}
+
+	s := gocron.NewScheduler(loc)
+
 	// Initialize MongoDB Repository
 	or := mongodb.NewOrderRepository(mongo.Database)
 	tr := mongodb.NewTradeRepository(mongo.Database)
 	ar := mongodb.NewActivityRepository(mongo.Database)
+	sr := mongodb.NewSystemRepository(mongo.Database)
 
 	// Initialize Service
 	ms := service.NewManagerService(k, ar, or, tr)
+	js := service.NewJobService(sr, ar)
+
+	// Register scheduler
+	s.Every(i).Milliseconds().Do(js.NonceMonitoring)
+
+	// Start scheduler
+	s.StartAsync()
 
 	// Subscribe to kafka
 	k.Subscribe(ms.HandlePickup)

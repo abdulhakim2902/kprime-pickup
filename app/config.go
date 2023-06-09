@@ -14,14 +14,17 @@ var Config AppConfig
 var logger = log.Logger
 
 type AppConfig struct {
-	HTTP  `yaml:"http"`
-	Mongo `yaml:"mongo"`
-	Kafka `yaml:"kafka"`
+	HTTP              `yaml:"http"`
+	Mongo             `yaml:"mongo"`
+	Kafka             `yaml:"kafka"`
+	Scheduler         `yaml:"scheduler"`
+	NonceDiff         string `yaml:"nonce_diff" env:"NONCE_DIFF" env-default:"20"`
+	MatchingEngineURL string `yaml:"matching_engine_url" env:"MATCHING_ENGINE_URL" env-default:"http://localhost:8080"`
 }
 
 type HTTP struct {
 	NodeENV string `yaml:"node_env" env:"NODE_ENV" env-default:"development"`
-	Port    string `yaml:"port" env:"PORT" env-default:"8080"`
+	Port    string `yaml:"port" env:"PORT" env-default:"8081"`
 }
 
 type Kafka struct {
@@ -31,6 +34,10 @@ type Kafka struct {
 type Mongo struct {
 	Database string `yaml:"mongo_database" env:"MONGO_DATABASE" env-default:"option_exchange"`
 	URL      string `yaml:"mongo_url" env:"MONGO_URL" env-default:"mongodb://localhost:27017"`
+}
+
+type Scheduler struct {
+	MonitoringInterval string `yaml:"monitoring_interval" env:"MONITORING_INTERVAL" env-default:"1000"`
 }
 
 // LoadConfig loads configuration from the given list of paths and populates it into the Config variable.

@@ -172,8 +172,18 @@ func (m *ManagerService) updateCancelledOrders(f interface{}, n int) error {
 		return nil
 	}
 
+	filter := map[string]interface{}{}
+
+	raw := f.(map[string]interface{})
+	for k, v := range raw {
+		if k == "clOrdId" {
+			continue
+		}
+
+		filter[k] = v
+	}
+
 	now := time.Now()
-	filter := f.(bson.M)
 	update := bson.M{
 		"$set": bson.M{
 			"status":          types.CANCELLED,
@@ -182,6 +192,7 @@ func (m *ManagerService) updateCancelledOrders(f interface{}, n int) error {
 			"cancelledAt":     now,
 		},
 	}
+
 	m.orderRepository.UpdateAll(filter, update)
 	return nil
 }
