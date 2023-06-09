@@ -23,8 +23,9 @@ type AppConfig struct {
 }
 
 type HTTP struct {
-	NodeENV string `yaml:"node_env" env:"NODE_ENV" env-default:"development"`
-	Port    string `yaml:"port" env:"PORT" env-default:"8081"`
+	NodeENV     string `yaml:"node_env" env:"NODE_ENV" env-default:"development"`
+	ServerPort  string `yaml:"server_port" env:"SERVER_PORT" env-default:"8081"`
+	MetricsPort string `yaml:"metrics_port" env:"METRICS_PORT" env-default:"2114"`
 }
 
 type Kafka struct {
@@ -57,7 +58,8 @@ func LoadConfig() error {
 	}
 
 	logger.Infof("Environment: %v", Config.HTTP.NodeENV)
-	logger.Infof("Server port: %v", Config.HTTP.Port)
+	logger.Infof("Server port: %v", Config.HTTP.ServerPort)
+	logger.Infof("Metric port: %v", Config.HTTP.MetricsPort)
 	logger.Infof("MongoDB url: %v", Config.Mongo.URL)
 	logger.Infof("Kafka url: %v", Config.Kafka.BrokerURL)
 
