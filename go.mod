@@ -3,7 +3,8 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.32
+	git.devucc.name/dependencies/utilities v1.0.33
+	github.com/go-co-op/gocron v1.28.2
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.40
@@ -31,12 +32,14 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/quickfixgo/quickfix v0.7.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect

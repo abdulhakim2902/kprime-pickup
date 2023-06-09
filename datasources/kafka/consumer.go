@@ -21,7 +21,7 @@ func InitConsumer(url string) *kafka.Reader {
 	return kafka.NewReader(config)
 }
 
-func (k *Kafka) Subscribe(cb func(kafka.Message)) {
+func (k *Kafka) Subscribe(cb func(kafka.Message) error) {
 	go func() {
 		for {
 			m, e := k.reader.FetchMessage(context.Background())
