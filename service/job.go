@@ -78,6 +78,7 @@ func (js *JobService) NonceMonitoring() {
 
 func (js *JobService) fetchMatchingEngineNonce() (nonce float64) {
 	url := fmt.Sprintf("%s/api/v1/activities/nonce", app.Config.MatchingEngineURL)
+	fmt.Println(url)
 	res, err := http.Get(url)
 	if err != nil {
 		logs.Log.Err(err).Msg("Invalid url!")
