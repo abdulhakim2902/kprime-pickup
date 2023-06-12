@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"git.devucc.name/dependencies/utilities/commons/metrics"
+	"git.devucc.name/dependencies/utilities/types"
 
 	"git.devucc.name/dependencies/utilities/commons/logs"
 	"git.devucc.name/dependencies/utilities/repository/mongodb"
@@ -21,7 +22,7 @@ import (
 
 const PICKUP logs.LoggerType = "PICKUP"
 
-var topics = "ENGINE,CANCELLED_ORDER,ENGINE_SAVED"
+var topics = []types.Topic{types.ENGINE, types.CANCELLED_ORDER, types.ENGINE_SAVED, "CANCELLED_ORDER_SAVED"}
 
 func Start() {
 	// Logger
@@ -38,7 +39,7 @@ func Start() {
 	}
 
 	// Initialize Consumer
-	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics)
+	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics...)
 	if err != nil {
 		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}

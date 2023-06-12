@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"git.devucc.name/dependencies/utilities/commons/log"
+	"git.devucc.name/dependencies/utilities/types"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -15,7 +16,7 @@ func InitConsumer(url string) *kafka.Reader {
 	config := kafka.ReaderConfig{
 		Brokers:     []string{url},
 		GroupID:     groupID,
-		GroupTopics: []string{"ENGINE", "CANCELLED_ORDERS"},
+		GroupTopics: []string{string(types.ENGINE), string(types.CANCELLED_ORDER)},
 	}
 
 	return kafka.NewReader(config)
@@ -32,7 +33,7 @@ func (k *Kafka) Subscribe(cb func(kafka.Message) error) {
 
 			logger.Infof("Received messages from %v: %v", m.Topic, string(m.Value))
 
-			go cb(m)
+			cb(m)
 		}
 	}()
 }
