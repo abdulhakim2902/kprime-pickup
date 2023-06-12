@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -44,10 +43,6 @@ var (
 	RequestDurationsMutex sync.RWMutex
 )
 
-func genRequestDurationKey(userId, clOrdID string) string {
-	return fmt.Sprintf("%s-%s", clOrdID, userId)
-}
-
 func cleanUpDuration(key string) {
 	RequestDurationsMutex.RLock()
 	defer RequestDurationsMutex.RUnlock()
@@ -55,12 +50,11 @@ func cleanUpDuration(key string) {
 	delete(RequestDurations, key)
 }
 
-func StartRequestDuration(userId, clOrdID string, request RequestDuration) {
+func StartRequestDuration(key string, request RequestDuration) {
 	if RequestDurations == nil {
 		RequestDurations = make(map[string]RequestDuration)
 	}
 
-	key := genRequestDurationKey(userId, clOrdID)
 	start := uint64(time.Now().UnixMicro())
 	request.StartDuration = start
 
@@ -71,8 +65,7 @@ func StartRequestDuration(userId, clOrdID string, request RequestDuration) {
 	RequestDurations[key] = request
 }
 
-func EndRequestDuration(userId, clOrdID, topic string) {
-	key := genRequestDurationKey(userId, clOrdID)
+func EndRequestDuration(key, topic string) {
 	reqDuration, ok := RequestDurations[key]
 	if !ok {
 		return
@@ -92,15 +85,15 @@ func EndRequestDuration(userId, clOrdID, topic string) {
 	cleanUpDuration(key)
 }
 
-func ConsumedMetricCounter(topic, userId, clOrdId string) {
+func ConsumedMetricCounter(topic, key string) {
 	IncomingCounter.With(prometheus.Labels{
 		"topic": topic,
 	}).Inc()
 
-	StartRequestDuration(userId, clOrdId, RequestDuration{Topic: topic})
+	StartRequestDuration(key, RequestDuration{Topic: topic})
 }
 
-func PublishedMetricCounter(topic, userId, clOrdId string, success bool) {
+func PublishedMetricCounter(topic, key string, success bool) {
 	label := prometheus.Labels{"topic": topic}
 	if success {
 		SuccessCounter.With(label).Inc()
@@ -108,5 +101,5 @@ func PublishedMetricCounter(topic, userId, clOrdId string, success bool) {
 		FailureCounter.With(label).Inc()
 	}
 
-	EndRequestDuration(userId, clOrdId, topic)
+	EndRequestDuration(key, topic)
 }

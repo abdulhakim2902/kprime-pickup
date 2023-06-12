@@ -1,5 +1,13 @@
 ## Pickup Manager
 
+### Setup the application
+To setup the application, please copy file `.env.example` and rename it to `.env`, modify .env file based on your local requirement.
+Add GOPRIVATE to the go env for git.devucc.name to get private dependencies
+
+```
+GOPRIVATE=git.devucc.name/dependencies/utilities go get git.devucc.name/dependencies/utilities@v1.0.3
+```
+
 ### Start the application
 To start running the application, simply run:
 

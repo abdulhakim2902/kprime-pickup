@@ -5,9 +5,9 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 
+	"git.devucc.name/dependencies/utilities/types"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -16,7 +16,7 @@ type Kafka struct {
 	writer *kafka.Writer
 }
 
-func InitConnection(url string, topic string) (*Kafka, error) {
+func InitConnection(url string, topics ...types.Topic) (*Kafka, error) {
 	logger.Infof("Kafka connecting...")
 	conn, err := kafka.Dial("tcp", url)
 	if err != nil {
@@ -41,13 +41,13 @@ func InitConnection(url string, topic string) (*Kafka, error) {
 	}
 	defer controllerConn.Close()
 
-	topics := strings.Split(topic, ",")
 	topicConfig := make([]kafka.TopicConfig, len(topics))
 
 	for _, t := range topics {
 		exist := false
+		topic := string(t)
 		for _, p := range partitions {
-			if p.Topic == t {
+			if p.Topic == topic {
 				exist = true
 				break
 			}
@@ -55,7 +55,7 @@ func InitConnection(url string, topic string) (*Kafka, error) {
 
 		if !exist {
 			topicConfig = append(topicConfig, kafka.TopicConfig{
-				Topic:             t,
+				Topic:             topic,
 				NumPartitions:     1,
 				ReplicationFactor: 1,
 			})
