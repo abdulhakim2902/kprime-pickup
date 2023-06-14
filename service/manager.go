@@ -30,6 +30,7 @@ type ManagerService struct {
 	orderRepository    interfaces.Repository[order.Order]
 	tradeRepository    interfaces.Repository[trade.Trade]
 	nonce              int64
+	requestDurations   collector.RequestDurations
 	mutex              *sync.Mutex
 }
 
@@ -46,12 +47,18 @@ func NewManagerService(
 		n = acts[0].Nonce
 	}
 
+	rd := collector.RequestDurations{
+		RequestDurations: map[string]collector.RequestDuration{},
+		Mutex:            &sync.Mutex{},
+	}
+
 	return ManagerService{
 		kafkaConn:          k,
 		activityRepository: a,
 		orderRepository:    o,
 		tradeRepository:    t,
 		nonce:              n,
+		requestDurations:   rd,
 		mutex:              &sync.Mutex{},
 	}
 }
@@ -62,7 +69,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 
 	// Metrics
 	activityId := primitive.NewObjectID()
-	go collector.ConsumedMetricCounter(msg.Topic, activityId.Hex())
+	go m.requestDurations.StartRequestDuration(msg.Topic, activityId.Hex())
 
 	// Initialize data
 	orders := []*order.Order{}
@@ -89,7 +96,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 
 	if err != nil {
 		go m.kafkaConn.Commit(msg)
-		go collector.PublishedMetricCounter(msg.Topic, activityId.Hex(), false)
+		go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), false)
 		return nil
 	}
 
@@ -119,7 +126,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 		return m.manager(msg.Topic, activityId.Hex())
 	}
 
-	go collector.PublishedMetricCounter(msg.Topic, activityId.Hex(), true)
+	go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), true)
 
 	return nil
 }
@@ -275,7 +282,7 @@ func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{})
 }
 
 func (m *ManagerService) manager(topic string, key string) error {
-	go collector.PublishedMetricCounter(topic, key, false)
+	go m.requestDurations.EndRequestDuration(topic, key, false)
 
 	return nil
 }
