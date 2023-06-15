@@ -38,42 +38,34 @@ type RequestDuration struct {
 	EndDuration   uint64
 }
 
-var (
-	RequestDurations      map[string]RequestDuration
-	RequestDurationsMutex sync.RWMutex
-)
-
-func cleanUpDuration(key string) {
-	RequestDurationsMutex.RLock()
-	defer RequestDurationsMutex.RUnlock()
-
-	delete(RequestDurations, key)
+type RequestDurations struct {
+	RequestDurations map[string]RequestDuration
+	Mutex            *sync.Mutex
 }
 
-func StartRequestDuration(key string, request RequestDuration) {
-	if RequestDurations == nil {
-		RequestDurations = make(map[string]RequestDuration)
+func (r *RequestDurations) StartRequestDuration(t, k string) {
+	r.consumedMetricCounter(t)
+
+	rd := RequestDuration{
+		Topic:         t,
+		StartDuration: uint64(time.Now().UnixMicro()),
 	}
 
-	start := uint64(time.Now().UnixMicro())
-	request.StartDuration = start
-
-	// Add duration
-	RequestDurationsMutex.RLock()
-	defer RequestDurationsMutex.RUnlock()
-
-	RequestDurations[key] = request
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+	r.RequestDurations[k] = rd
 }
 
-func EndRequestDuration(key, topic string) {
-	reqDuration, ok := RequestDurations[key]
+func (r *RequestDurations) EndRequestDuration(t, k string, v bool) {
+	r.publishedMetricCounter(t, v)
+
+	reqDuration, ok := r.RequestDurations[k]
 	if !ok {
 		return
 	}
 
-	end := uint64(time.Now().UnixMicro())
-	reqDuration.EndDuration = end
-	reqDuration.Topic = topic
+	reqDuration.EndDuration = uint64(time.Now().UnixMicro())
+	reqDuration.Topic = t
 
 	go func(req RequestDuration) {
 		RequestDurationHistogram.
@@ -81,25 +73,23 @@ func EndRequestDuration(key, topic string) {
 			Observe(float64(req.EndDuration - req.StartDuration))
 	}(reqDuration)
 
-	// Release duration
-	cleanUpDuration(key)
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+
+	delete(r.RequestDurations, k)
 }
 
-func ConsumedMetricCounter(topic, key string) {
+func (r *RequestDurations) consumedMetricCounter(topic string) {
 	IncomingCounter.With(prometheus.Labels{
 		"topic": topic,
 	}).Inc()
-
-	StartRequestDuration(key, RequestDuration{Topic: topic})
 }
 
-func PublishedMetricCounter(topic, key string, success bool) {
+func (r *RequestDurations) publishedMetricCounter(topic string, success bool) {
 	label := prometheus.Labels{"topic": topic}
 	if success {
 		SuccessCounter.With(label).Inc()
 	} else {
 		FailureCounter.With(label).Inc()
 	}
-
-	EndRequestDuration(key, topic)
 }
