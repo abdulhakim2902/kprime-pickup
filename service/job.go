@@ -14,6 +14,7 @@ import (
 	"git.devucc.name/dependencies/utilities/interfaces"
 	"git.devucc.name/dependencies/utilities/models/activity"
 	"git.devucc.name/dependencies/utilities/models/system"
+	"git.devucc.name/dependencies/utilities/repository/mongodb"
 	"git.devucc.name/dependencies/utilities/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -24,11 +25,8 @@ type JobService struct {
 	activity interfaces.Repository[activity.Activity]
 }
 
-func NewJobService(
-	s interfaces.Repository[system.System],
-	a interfaces.Repository[activity.Activity],
-) JobService {
-	return JobService{system: s, activity: a}
+func NewJobService(r *mongodb.Repositories) JobService {
+	return JobService{system: r.System, activity: r.Activity}
 }
 
 func (js *JobService) NonceMonitoring() {
