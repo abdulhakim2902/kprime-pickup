@@ -58,14 +58,11 @@ func Start() {
 	s := gocron.NewScheduler(loc)
 
 	// Initialize MongoDB Repository
-	or := mongodb.NewOrderRepository(mongo.Database)
-	tr := mongodb.NewTradeRepository(mongo.Database)
-	ar := mongodb.NewActivityRepository(mongo.Database)
-	sr := mongodb.NewSystemRepository(mongo.Database)
+	r := mongodb.NewRepositories(mongo.Database)
 
 	// Initialize Service
-	ms := service.NewManagerService(k, ar, or, tr)
-	js := service.NewJobService(sr, ar)
+	ms := service.NewManagerService(k, r)
+	js := service.NewJobService(r)
 
 	// Register scheduler
 	s.Every(i).Milliseconds().Do(js.NonceMonitoring)

@@ -10,11 +10,12 @@ import (
 
 	"git.devucc.name/dependencies/utilities/commons/log"
 	"git.devucc.name/dependencies/utilities/commons/logs"
-	"git.devucc.name/dependencies/utilities/interfaces"
 	"git.devucc.name/dependencies/utilities/models/activity"
 	"git.devucc.name/dependencies/utilities/models/engine"
 	"git.devucc.name/dependencies/utilities/models/order"
 	"git.devucc.name/dependencies/utilities/models/trade"
+	"git.devucc.name/dependencies/utilities/models/user"
+	"git.devucc.name/dependencies/utilities/repository/mongodb"
 	"git.devucc.name/dependencies/utilities/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,24 +26,17 @@ import (
 var logger = log.Logger
 
 type ManagerService struct {
-	kafkaConn          *kafka.Kafka
-	activityRepository interfaces.Repository[activity.Activity]
-	orderRepository    interfaces.Repository[order.Order]
-	tradeRepository    interfaces.Repository[trade.Trade]
-	nonce              int64
-	requestDurations   collector.RequestDurations
-	mutex              *sync.Mutex
+	kafkaConn        *kafka.Kafka
+	repositories     *mongodb.Repositories
+	nonce            int64
+	requestDurations collector.RequestDurations
+	mutex            *sync.Mutex
 }
 
-func NewManagerService(
-	k *kafka.Kafka,
-	a interfaces.Repository[activity.Activity],
-	o interfaces.Repository[order.Order],
-	t interfaces.Repository[trade.Trade],
-) ManagerService {
+func NewManagerService(k *kafka.Kafka, r *mongodb.Repositories) ManagerService {
 	n := int64(0)
 	p := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
-	acts := a.Aggregate(p)
+	acts := r.Activity.Aggregate(p)
 	if len(acts) > 0 {
 		n = acts[0].Nonce
 	}
@@ -53,13 +47,11 @@ func NewManagerService(
 	}
 
 	return ManagerService{
-		kafkaConn:          k,
-		activityRepository: a,
-		orderRepository:    o,
-		tradeRepository:    t,
-		nonce:              n,
-		requestDurations:   rd,
-		mutex:              &sync.Mutex{},
+		kafkaConn:        k,
+		repositories:     r,
+		nonce:            n,
+		requestDurations: rd,
+		mutex:            &sync.Mutex{},
 	}
 }
 
@@ -208,7 +200,7 @@ func (m *ManagerService) updateOrders(o []*order.Order) error {
 		filter := bson.M{"_id": order.ID}
 		update := bson.M{"$set": order}
 
-		if _, err := m.orderRepository.FindAndModify(filter, update); err != nil {
+		if _, err := m.repositories.Order.FindAndModify(filter, update); err != nil {
 			return err
 		}
 	}
@@ -221,12 +213,69 @@ func (m *ManagerService) updateTrades(t []*trade.Trade) error {
 		filter := bson.M{"_id": trade.ID}
 		update := bson.M{"$set": trade}
 
-		if _, err := m.tradeRepository.FindAndModify(filter, update); err != nil {
+		if _, err := m.repositories.Trade.FindAndModify(filter, update); err != nil {
 			return err
 		}
+
+		if trade.Status == types.FAILED {
+			continue
+		}
+
+		m.updateUserCollateral(trade, trade.Taker)
+		m.updateUserCollateral(trade, trade.Maker)
 	}
 
 	return nil
+}
+
+func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
+	side := us.Side
+
+	o, _ := primitive.ObjectIDFromHex(us.UserID)
+
+	i := t.OrderCode()
+	f := bson.M{"_id": o}
+	u := m.repositories.User.FindOne(f)
+
+	for _, bal := range u.Collaterals.Balances {
+		if bal.Currency == "USD" {
+			if side == types.BUY {
+				bal.Amount += t.Amount * t.Price
+			} else {
+				bal.Amount -= t.Amount * t.Price
+			}
+
+			break
+		}
+	}
+
+	exist := false
+	for _, con := range u.Collaterals.Contracts {
+		if con.InstrumentName == i {
+			exist = true
+
+			if side == types.BUY {
+				con.Amount -= t.Amount
+			} else {
+				con.Amount += t.Amount
+			}
+
+			break
+		}
+	}
+
+	if !exist {
+		newContract := &user.Contract{InstrumentName: i}
+		if side == types.BUY {
+			newContract.Amount = -t.Amount
+		} else {
+			newContract.Amount = t.Amount
+		}
+
+		u.Collaterals.Contracts = append(u.Collaterals.Contracts, newContract)
+	}
+
+	m.repositories.User.FindAndModify(f, bson.M{"$set": u})
 }
 
 func (m *ManagerService) validateOrders(e *engine.EngineResponse) (orders []*order.Order, trades []*trade.Trade, err error) {
@@ -272,7 +321,7 @@ func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{})
 
 	filter := bson.M{"_id": activity.ID}
 	update := bson.M{"$set": activity}
-	if _, err := m.activityRepository.FindAndModify(filter, update); err != nil {
+	if _, err := m.repositories.Activity.FindAndModify(filter, update); err != nil {
 		return err
 	}
 

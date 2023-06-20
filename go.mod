@@ -3,7 +3,7 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.39
+	git.devucc.name/dependencies/utilities v1.0.40
 	github.com/go-co-op/gocron v1.28.2
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
