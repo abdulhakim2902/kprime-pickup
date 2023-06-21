@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"pickup/datasources/collector"
 	"pickup/datasources/kafka"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	kafkago "github.com/segmentio/kafka-go"
+	"github.com/shopspring/decimal"
 )
 
 var logger = log.Logger
@@ -76,12 +78,12 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 	var err error
 
 	switch msg.Topic {
-	case string(types.ENGINE):
-		er, nonce, err = m.processEngine(msg.Value)
+	case types.ENGINE.String():
+		er, nonce, err = m.processEngine(msg)
 		orders, trades, err = m.validateOrders(er)
 		data = m.activityData(msg.Topic, er)
-	case string(types.CANCELLED_ORDER):
-		co, nonce, err = m.processCancelledOrders(msg.Value)
+	case types.CANCELLED_ORDER.String():
+		co, nonce, err = m.processCancelledOrders(msg)
 		data = m.activityData(msg.Topic, co)
 		orders = data.(map[string]interface{})["data"].([]*order.Order)
 	}
@@ -123,12 +125,13 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 	return nil
 }
 
-func (m *ManagerService) processEngine(v []byte) (e *engine.EngineResponse, nonce int64, err error) {
+func (m *ManagerService) processEngine(msg kafkago.Message) (e *engine.EngineResponse, nonce int64, err error) {
+	v := msg.Value
 	e = &engine.EngineResponse{}
 	if err := json.Unmarshal(v, e); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
 
-		if err := m.kafkaConn.Commit(kafkago.Message{Topic: string(types.ENGINE), Value: v}); err != nil {
+		if err := m.kafkaConn.Commit(msg); err != nil {
 			return nil, 0, err
 		}
 
@@ -141,7 +144,7 @@ func (m *ManagerService) processEngine(v []byte) (e *engine.EngineResponse, nonc
 	if e.Nonce <= 0 {
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
-		if err := m.kafkaConn.Commit(kafkago.Message{Topic: string(types.ENGINE), Value: v}); err != nil {
+		if err := m.kafkaConn.Commit(msg); err != nil {
 			return nil, 0, err
 		}
 
@@ -151,11 +154,12 @@ func (m *ManagerService) processEngine(v []byte) (e *engine.EngineResponse, nonc
 	return e, e.Nonce, nil
 }
 
-func (m *ManagerService) processCancelledOrders(v []byte) (c *order.CancelledOrder, nonce int64, err error) {
+func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (c *order.CancelledOrder, nonce int64, err error) {
+	v := msg.Value
 	c = &order.CancelledOrder{}
 	if err := json.Unmarshal(v, c); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
-		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
+		if err := m.kafkaConn.Commit(msg); err != nil {
 			return nil, 0, err
 		}
 
@@ -165,7 +169,7 @@ func (m *ManagerService) processCancelledOrders(v []byte) (c *order.CancelledOrd
 	if c.Nonce <= 0 {
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
-		if err := m.kafkaConn.Commit(kafkago.Message{Topic: "CANCELLED_ORDERS", Value: v}); err != nil {
+		if err := m.kafkaConn.Commit(msg); err != nil {
 			return nil, 0, err
 		}
 
@@ -181,10 +185,10 @@ func (m *ManagerService) activityData(t string, r interface{}) (data interface{}
 	}
 
 	switch t {
-	case string(types.ENGINE):
+	case types.ENGINE.String():
 		e := r.(*engine.EngineResponse)
 		return e.Matches
-	case string(types.CANCELLED_ORDER):
+	case types.CANCELLED_ORDER.String():
 		c := r.(*order.CancelledOrder)
 		return map[string]interface{}{
 			"query": c.Query,
@@ -229,20 +233,23 @@ func (m *ManagerService) updateTrades(t []*trade.Trade) error {
 }
 
 func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
-	side := us.Side
+	s := us.Side
 
 	o, _ := primitive.ObjectIDFromHex(us.UserID)
 
 	i := t.OrderCode()
 	f := bson.M{"_id": o}
 	u := m.repositories.User.FindOne(f)
+	a := decimal.NewFromFloat(t.Amount)
+	p := a.Mul(decimal.NewFromFloat(t.Price))
 
 	for _, bal := range u.Collaterals.Balances {
 		if bal.Currency == "USD" {
-			if side == types.BUY {
-				bal.Amount += t.Amount * t.Price
+			balance := bal.GetAmount()
+			if s == types.BUY {
+				bal.Amount = balance.Add(p).String()
 			} else {
-				bal.Amount -= t.Amount * t.Price
+				bal.Amount = balance.Sub(p).String()
 			}
 
 			break
@@ -254,10 +261,10 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 		if con.InstrumentName == i {
 			exist = true
 
-			if side == types.BUY {
-				con.Amount -= t.Amount
+			if s == types.BUY {
+				con.Amount = con.GetAmount().Sub(a).String()
 			} else {
-				con.Amount += t.Amount
+				con.Amount = con.GetAmount().Add(a).String()
 			}
 
 			break
@@ -266,10 +273,10 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 
 	if !exist {
 		newContract := &user.Contract{InstrumentName: i}
-		if side == types.BUY {
-			newContract.Amount = -t.Amount
+		if s == types.BUY {
+			newContract.Amount = fmt.Sprintf("-%f", t.Amount)
 		} else {
-			newContract.Amount = t.Amount
+			newContract.Amount = fmt.Sprintf("%f", t.Amount)
 		}
 
 		u.Collaterals.Contracts = append(u.Collaterals.Contracts, newContract)
@@ -307,10 +314,10 @@ func (m *ManagerService) validateOrders(e *engine.EngineResponse) (orders []*ord
 
 func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	switch msg.Topic {
-	case string(types.ENGINE):
-		return m.kafkaConn.Publish(kafkago.Message{Topic: string(types.ENGINE_SAVED), Value: msg.Value})
-	case string(types.CANCELLED_ORDER):
-		return m.kafkaConn.Publish(kafkago.Message{Topic: "CANCELLED_ORDER_SAVED", Value: msg.Value})
+	case types.ENGINE.String():
+		return m.kafkaConn.Publish(kafkago.Message{Topic: types.ENGINE_SAVED.String(), Value: msg.Value})
+	case types.CANCELLED_ORDER.String():
+		return m.kafkaConn.Publish(kafkago.Message{Topic: types.CANCELLED_ORDER.String(), Value: msg.Value})
 	default:
 		return errors.New("TopicNotFound")
 	}

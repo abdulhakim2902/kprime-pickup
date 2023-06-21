@@ -3,12 +3,13 @@ module pickup
 go 1.20
 
 require (
-	git.devucc.name/dependencies/utilities v1.0.40
+	git.devucc.name/dependencies/utilities v1.0.42
 	github.com/go-co-op/gocron v1.28.2
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/segmentio/kafka-go v0.4.40
+	github.com/shopspring/decimal v1.3.1
 	go.mongodb.org/mongo-driver v1.11.6
 )
 
@@ -40,7 +41,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
-	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

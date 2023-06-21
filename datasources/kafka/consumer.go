@@ -16,7 +16,7 @@ func InitConsumer(url string) *kafka.Reader {
 	config := kafka.ReaderConfig{
 		Brokers:     []string{url},
 		GroupID:     groupID,
-		GroupTopics: []string{string(types.ENGINE), string(types.CANCELLED_ORDER)},
+		GroupTopics: []string{types.ENGINE.String(), types.CANCELLED_ORDER.String()},
 	}
 
 	return kafka.NewReader(config)

@@ -22,7 +22,12 @@ import (
 
 const PICKUP logs.LoggerType = "PICKUP"
 
-var topics = []types.Topic{types.ENGINE, types.CANCELLED_ORDER, types.ENGINE_SAVED, "CANCELLED_ORDER_SAVED"}
+var topics = []types.Topic{
+	types.ENGINE,
+	types.CANCELLED_ORDER,
+	types.ENGINE_SAVED,
+	types.CANCELLED_ORDER_SAVED,
+}
 
 func Start() {
 	// Logger

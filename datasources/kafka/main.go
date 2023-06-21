@@ -45,7 +45,7 @@ func InitConnection(url string, topics ...types.Topic) (*Kafka, error) {
 
 	for _, t := range topics {
 		exist := false
-		topic := string(t)
+		topic := t.String()
 		for _, p := range partitions {
 			if p.Topic == topic {
 				exist = true
