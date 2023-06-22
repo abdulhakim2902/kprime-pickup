@@ -317,7 +317,7 @@ func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	case types.ENGINE.String():
 		return m.kafkaConn.Publish(kafkago.Message{Topic: types.ENGINE_SAVED.String(), Value: msg.Value})
 	case types.CANCELLED_ORDER.String():
-		return m.kafkaConn.Publish(kafkago.Message{Topic: types.CANCELLED_ORDER.String(), Value: msg.Value})
+		return m.kafkaConn.Publish(kafkago.Message{Topic: types.CANCELLED_ORDER_SAVED.String(), Value: msg.Value})
 	default:
 		return errors.New("TopicNotFound")
 	}
