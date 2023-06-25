@@ -1,5 +1,5 @@
-git.devucc.name/dependencies/utilities v1.0.43 h1:GSnqV2xt/NHNe5MSG1mRP+XU7V/xkX4AikpfBA+kz4E=
-git.devucc.name/dependencies/utilities v1.0.43/go.mod h1:NV4XwjhnrkeijI5IAU4h8vaPYfq7Czh5eqodd0KOsZU=
+git.devucc.name/dependencies/utilities v1.0.48 h1:IFGxTH7gQvYtHZqXoQWMb567VYCOR3Uv3NJpdY9IiQA=
+git.devucc.name/dependencies/utilities v1.0.48/go.mod h1:r0MWNTFkdEbDqawaKg0o2fECHThv7cLB2ATpo8E8yko=
 github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I=
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/armon/go-proxyproto v0.0.0-20210323213023-7e956b284f0a h1:AP/vsCIvJZ129pdm9Ek7bH7yutN3hByqsMoNrWAxRQc=

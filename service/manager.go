@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"pickup/datasources/collector"
 	"pickup/datasources/kafka"
 	"sync"
@@ -240,8 +239,7 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	i := t.OrderCode()
 	f := bson.M{"_id": o}
 	u := m.repositories.User.FindOne(f)
-	a := decimal.NewFromFloat(t.Amount)
-	p := a.Mul(decimal.NewFromFloat(t.Price))
+	p := t.GetAmount().Mul(decimal.NewFromFloat(t.Price))
 
 	for _, bal := range u.Collaterals.Balances {
 		if bal.Currency == "USD" {
@@ -262,9 +260,9 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 			exist = true
 
 			if s == types.BUY {
-				con.Amount = con.GetAmount().Sub(a).String()
+				con.Amount = con.GetAmount().Sub(t.GetAmount()).String()
 			} else {
-				con.Amount = con.GetAmount().Add(a).String()
+				con.Amount = con.GetAmount().Add(t.GetAmount()).String()
 			}
 
 			break
@@ -274,9 +272,9 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	if !exist {
 		newContract := &user.Contract{InstrumentName: i}
 		if s == types.BUY {
-			newContract.Amount = fmt.Sprintf("-%f", t.Amount)
+			newContract.Amount = "-" + t.Amount
 		} else {
-			newContract.Amount = fmt.Sprintf("%f", t.Amount)
+			newContract.Amount = t.Amount
 		}
 
 		u.Collaterals.Contracts = append(u.Collaterals.Contracts, newContract)
