@@ -242,16 +242,18 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	p := t.GetAmount().Mul(decimal.NewFromFloat(t.Price))
 
 	for _, bal := range u.Collaterals.Balances {
-		if bal.Currency == "USD" {
-			balance := bal.GetAmount()
-			if s == types.BUY {
-				bal.Amount = balance.Add(p).String()
-			} else {
-				bal.Amount = balance.Sub(p).String()
-			}
-
-			break
+		if bal.Currency != "USD" {
+			continue
 		}
+
+		balance := bal.GetAmount()
+		if s == types.BUY {
+			bal.Amount = balance.Sub(p.Add(us.Fee.GetAmount())).String()
+		} else {
+			bal.Amount = balance.Add(p.Sub(us.Fee.GetAmount())).String()
+		}
+
+		break
 	}
 
 	exist := false
@@ -260,9 +262,9 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 			exist = true
 
 			if s == types.BUY {
-				con.Amount = con.GetAmount().Sub(t.GetAmount()).String()
-			} else {
 				con.Amount = con.GetAmount().Add(t.GetAmount()).String()
+			} else {
+				con.Amount = con.GetAmount().Sub(t.GetAmount()).String()
 			}
 
 			break
@@ -272,9 +274,9 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	if !exist {
 		newContract := &user.Contract{InstrumentName: i}
 		if s == types.BUY {
-			newContract.Amount = "-" + t.Amount
-		} else {
 			newContract.Amount = t.Amount
+		} else {
+			newContract.Amount = "-" + t.Amount
 		}
 
 		u.Collaterals.Contracts = append(u.Collaterals.Contracts, newContract)
