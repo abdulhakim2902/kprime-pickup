@@ -105,7 +105,7 @@ func (js *JobService) fetchMatchingEngineNonce() (nonce float64) {
 }
 
 func (js *JobService) fetchMongoNonce() (nonce float64) {
-	pipeline := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
+	pipeline := []bson.M{{"$sort": bson.M{"nonce": -1}}, {"$limit": 1}}
 	activities := js.activity.Aggregate(pipeline)
 	if len(activities) > 0 {
 		return float64(activities[0].Nonce)

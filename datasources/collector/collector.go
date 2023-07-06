@@ -44,6 +44,9 @@ type RequestDurations struct {
 }
 
 func (r *RequestDurations) StartRequestDuration(t, k string) {
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+
 	r.consumedMetricCounter(t)
 
 	rd := RequestDuration{
@@ -51,12 +54,13 @@ func (r *RequestDurations) StartRequestDuration(t, k string) {
 		StartDuration: uint64(time.Now().UnixMicro()),
 	}
 
-	r.Mutex.Lock()
-	defer r.Mutex.Unlock()
 	r.RequestDurations[k] = rd
 }
 
 func (r *RequestDurations) EndRequestDuration(t, k string, v bool) {
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+
 	r.publishedMetricCounter(t, v)
 
 	reqDuration, ok := r.RequestDurations[k]
@@ -72,9 +76,6 @@ func (r *RequestDurations) EndRequestDuration(t, k string, v bool) {
 			With(prometheus.Labels{"topic": req.Topic}).
 			Observe(float64(req.EndDuration - req.StartDuration))
 	}(reqDuration)
-
-	r.Mutex.Lock()
-	defer r.Mutex.Unlock()
 
 	delete(r.RequestDurations, k)
 }

@@ -56,7 +56,7 @@ func NewManagerService(k *kafka.Kafka, r *mongodb.Repositories) ManagerService {
 	}
 }
 
-func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
+func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -78,104 +78,83 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) error {
 
 	switch msg.Topic {
 	case types.ENGINE.String():
-		er, nonce, err = m.processEngine(msg)
+		er, err = m.processEngine(msg)
 		orders, trades, err = m.validateOrders(er)
 		data = m.activityData(msg.Topic, er)
+		nonce = er.Nonce
 	case types.CANCELLED_ORDER.String():
-		co, nonce, err = m.processCancelledOrders(msg)
+		co, err = m.processCancelledOrders(msg)
 		data = m.activityData(msg.Topic, co)
 		orders = data.(map[string]interface{})["data"].([]*order.Order)
+		nonce = co.Nonce
 	}
 
 	if err != nil {
 		go m.kafkaConn.Commit(msg)
 		go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), false)
-		return nil
+		return
 	}
 
-	if nonce != m.nonce+1 {
-		i := map[string]interface{}{"engine": nonce, "mongo": m.nonce + 1}
-		logs.Log.Error().Any("nonce", i).Msg("Invalid nonce!")
-		return m.manager(msg.Topic, activityId.Hex())
-	}
-
-	if err := m.updateOrders(orders); err != nil {
-		return m.manager(msg.Topic, activityId.Hex())
-	}
-
-	if err := m.updateTrades(trades); err != nil {
-		return m.manager(msg.Topic, activityId.Hex())
-	}
-
-	if err := m.kafkaConn.Commit(msg); err != nil {
-		return m.manager(msg.Topic, activityId.Hex())
-	}
-
-	if err := m.publishSaved(msg); err != nil {
-		return m.manager(msg.Topic, activityId.Hex())
-	}
-
-	if err := m.insertActivity(activityId, data); err != nil {
-		return m.manager(msg.Topic, activityId.Hex())
-	}
+	m.updateOrders(orders)
+	m.updateTrades(trades)
+	m.kafkaConn.Commit(msg)
+	m.insertActivity(activityId, data, nonce)
+	m.publishSaved(msg)
 
 	go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), true)
 
-	return nil
+	return
 }
 
-func (m *ManagerService) processEngine(msg kafkago.Message) (e *engine.EngineResponse, nonce int64, err error) {
+func (m *ManagerService) processEngine(msg kafkago.Message) (e *engine.EngineResponse, err error) {
 	v := msg.Value
 	e = &engine.EngineResponse{}
 	if err := json.Unmarshal(v, e); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
 
 		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 
-		return nil, 0, err
+		return nil, err
 	}
-
-	receivedTime := time.Since(e.CreatedAt).Microseconds()
-	logger.Infof("Received from matching engine: %v microseconds", receivedTime)
 
 	if e.Nonce <= 0 {
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
 		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 
-		return nil, 0, errors.New("NonceLessThanEqualZero")
+		return nil, errors.New("NonceLessThanEqualZero")
 	}
 
-	return e, e.Nonce, nil
+	return e, nil
 }
 
-func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (c *order.CancelledOrder, nonce int64, err error) {
+func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (c *order.CancelledOrder, err error) {
 	v := msg.Value
 	c = &order.CancelledOrder{}
 	if err := json.Unmarshal(v, c); err != nil {
 		logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
 		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 
-		return nil, 0, err
+		return nil, err
 	}
 
 	if c.Nonce <= 0 {
 		logs.Log.Error().Msg("Nonce less than equal zero!")
 
 		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 
-		return nil, 0, errors.New("NonceLessThanEqualZero")
+		return nil, errors.New("NonceLessThanEqualZero")
 	}
 
-	return c, c.Nonce, nil
+	return c, nil
 }
 
 func (m *ManagerService) activityData(t string, r interface{}) (data interface{}) {
@@ -323,8 +302,8 @@ func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	}
 }
 
-func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{}) error {
-	activity := &activity.Activity{ID: id, Nonce: m.nonce + 1, Data: data, CreatedAt: time.Now()}
+func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{}, nonce int64) error {
+	activity := &activity.Activity{ID: id, Nonce: nonce, Data: data, CreatedAt: time.Now()}
 
 	filter := bson.M{"_id": activity.ID}
 	update := bson.M{"$set": activity}
@@ -333,12 +312,6 @@ func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{})
 	}
 
 	m.nonce += 1
-
-	return nil
-}
-
-func (m *ManagerService) manager(topic string, key string) error {
-	go m.requestDurations.EndRequestDuration(topic, key, false)
 
 	return nil
 }
