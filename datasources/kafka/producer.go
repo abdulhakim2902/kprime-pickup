@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"time"
 
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
@@ -12,9 +11,7 @@ func InitProducer(url string) *kafka.Writer {
 	w := kafka.Writer{
 		Addr:         kafka.TCP(url),
 		Balancer:     &kafka.LeastBytes{},
-		BatchTimeout: 10 * time.Millisecond,
-		ReadTimeout:  20 * time.Millisecond,
-		WriteTimeout: 20 * time.Millisecond,
+		BatchTimeout: 1000,
 		Compression:  compress.Lz4,
 	}
 

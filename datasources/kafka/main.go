@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"git.devucc.name/dependencies/utilities/types"
+	"github.com/Undercurrent-Technologies/kprime-utilities/types"
 	"github.com/segmentio/kafka-go"
 )
 

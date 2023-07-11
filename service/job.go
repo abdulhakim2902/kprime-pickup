@@ -10,15 +10,17 @@ import (
 	"strconv"
 	"time"
 
-	"git.devucc.name/dependencies/utilities/commons/logs"
-	"git.devucc.name/dependencies/utilities/interfaces"
-	"git.devucc.name/dependencies/utilities/models/activity"
-	"git.devucc.name/dependencies/utilities/models/system"
-	"git.devucc.name/dependencies/utilities/repository/mongodb"
-	"git.devucc.name/dependencies/utilities/types"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/logs"
+	"github.com/Undercurrent-Technologies/kprime-utilities/interfaces"
+	"github.com/Undercurrent-Technologies/kprime-utilities/models/activity"
+	"github.com/Undercurrent-Technologies/kprime-utilities/models/system"
+	"github.com/Undercurrent-Technologies/kprime-utilities/repository/mongodb"
+	"github.com/Undercurrent-Technologies/kprime-utilities/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+var isError bool = false
 
 type JobService struct {
 	system   interfaces.Repository[system.System]
@@ -78,8 +80,16 @@ func (js *JobService) fetchMatchingEngineNonce() (nonce float64) {
 	url := fmt.Sprintf("%s/api/v1/activities/nonce", app.Config.MatchingEngineURL)
 	res, err := http.Get(url)
 	if err != nil {
-		logs.Log.Err(err).Msg("Invalid url!")
+		if !isError {
+			logs.Log.Err(err).Msg("Matching engine is DISCONNECTED!")
+			isError = true
+		}
 		return 0
+	} else {
+		if isError {
+			logs.Log.Info().Msg("Matching engine is CONNECTED!")
+			isError = false
+		}
 	}
 
 	if res.StatusCode != 200 {
