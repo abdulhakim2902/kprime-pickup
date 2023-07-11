@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 
-	"git.devucc.name/dependencies/utilities/commons/log"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/log"
 )
 
 type MongoDB struct {

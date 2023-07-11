@@ -4,7 +4,7 @@ import (
 	"path"
 	"runtime"
 
-	log "git.devucc.name/dependencies/utilities/commons/log"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/log"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
 )

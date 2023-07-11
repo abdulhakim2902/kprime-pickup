@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"time"
 
-	"git.devucc.name/dependencies/utilities/commons/metrics"
-	"git.devucc.name/dependencies/utilities/types"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/metrics"
+	"github.com/Undercurrent-Technologies/kprime-utilities/types"
 
-	"git.devucc.name/dependencies/utilities/commons/logs"
-	"git.devucc.name/dependencies/utilities/repository/mongodb"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/logs"
+	"github.com/Undercurrent-Technologies/kprime-utilities/repository/mongodb"
 	"github.com/go-co-op/gocron"
 )
 
