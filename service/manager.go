@@ -98,7 +98,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	m.updateOrders(orders)
 	m.updateTrades(trades)
 	m.kafkaConn.Commit(msg)
-	m.insertActivity(activityId, data, nonce)
+	m.insertActivity(activityId, data, nonce, msg.Offset)
 	m.publishSaved(msg)
 
 	go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), true)
@@ -302,8 +302,8 @@ func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	}
 }
 
-func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{}, nonce int64) error {
-	activity := &activity.Activity{ID: id, Nonce: nonce, Data: data, CreatedAt: time.Now()}
+func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{}, nonce, offset int64) error {
+	activity := &activity.Activity{ID: id, Nonce: nonce, KafkaOffset: offset, Data: data, CreatedAt: time.Now()}
 
 	filter := bson.M{"_id": activity.ID}
 	update := bson.M{"$set": activity}
