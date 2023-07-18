@@ -76,21 +76,21 @@ services:
     networks:
       - test-network
   
-  # pickup:
-  #   image: ${IMAGE_TAG}:pr-${PR_NUMBER}
-  #   container_name: 'pickup'
-  #   environment:
-  #     - NODE_ENV='development'
-  #     - SERVER_PORT=8003
-  #     - METRICS_PORT=2114
-  #     - MONGO_DATABASE='option_exchange'
-  #     - MONGO_URL='mongodb://root:root@mongo:27017'
-  #     - BROKER_URL='kafka:9092'
-  #     - MONITORING_INTERVAL=1000
-  #     - MATCHING_ENGINE_URL='matching-engine:8002'
-  #     - NONCE_DIFF=20
-  #   networks:
-  #     - test-network
+  pickup:
+    image: ${IMAGE_TAG}:pr-${PR_NUMBER}
+    container_name: 'pickup'
+    environment:
+      - NODE_ENV='development'
+      - SERVER_PORT=8003
+      - METRICS_PORT=2114
+      - MONGO_DATABASE='option_exchange'
+      - MONGO_URL='mongodb://root:root@mongo:27017'
+      - BROKER_URL='kafka:9092'
+      - MONITORING_INTERVAL=1000
+      - MATCHING_ENGINE_URL='matching-engine:8002'
+      - NONCE_DIFF=20
+    networks:
+      - test-network
   
   gateway:
     image: ghcr.io/undercurrent-technologies/gateway:dev
