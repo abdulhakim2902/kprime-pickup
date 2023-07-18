@@ -3,7 +3,7 @@ module pickup
 go 1.20
 
 require (
-	github.com/Undercurrent-Technologies/kprime-utilities v1.1.0
+	github.com/Undercurrent-Technologies/kprime-utilities v1.1.3
 	github.com/go-co-op/gocron v1.28.2
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1

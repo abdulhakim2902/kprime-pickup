@@ -20,8 +20,6 @@ import (
 	"github.com/go-co-op/gocron"
 )
 
-const PICKUP logs.LoggerType = "PICKUP"
-
 var topics = []types.Topic{
 	types.ENGINE,
 	types.CANCELLED_ORDER,
@@ -30,12 +28,14 @@ var topics = []types.Topic{
 }
 
 func Start() {
-	// Logger
-	logs.InitLogger(PICKUP)
-
 	// Initialize ENV
 	if err := app.LoadConfig(); err != nil {
 		logs.Log.Fatal().Err(err).Msg("Failed to load ENV!")
+	}
+
+	// Initialize Logger
+	if err := initLogger(); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
 
 	// Connect Database
