@@ -47,7 +47,7 @@ services:
       - test-network
   
   matching-engine:
-    image: ghcr.io/undercurrent-technologies/matching-engine:latest
+    image: ghcr.io/undercurrent-technologies/matching-engine:dev
     container_name: 'matching-engine'
     environment:
       - NODE_ENV=development
