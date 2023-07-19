@@ -17,20 +17,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.20"
 
       - run: git config --global url.https://${ACCESS_USER}:${ACCESS_TOKEN}@github.com/.insteadOf https://github.com
-
-      - name: Build App
-        run: |
-          go mod tidy
-          GOOS=linux GOARCH=amd64 go build -o pickup main.go
       
       - name: Build App Image
         run: |
+          go mod tidy
           docker build -t ${IMAGE_TAG}:pr-${PR_NUMBER} .
       
       - name: Prepare for test
@@ -43,7 +35,7 @@ jobs:
             -e NODE_ENV=development \
             -e MONGODB_URI="mongodb://root:root@mongo:27017" \
             -e MONGODB_DB_NAME=option_exchange \
-            --rm  ghcr.io/undercurrent-technologies/seeder:dev -- user,balance
+            ghcr.io/undercurrent-technologies/seeder:dev -- user,balance
           sleep 3
           docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
 
@@ -72,6 +64,6 @@ jobs:
             ghcr.io/undercurrent-technologies/tests:dev
 
       - name: Cleanup
-        run: docker-compose down -v
+        run: docker-compose -f docker-compose.itest.yml down -v
 
           
