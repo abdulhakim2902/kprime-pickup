@@ -33,13 +33,17 @@ jobs:
         run: |
           docker build -t ${IMAGE_TAG}:pr-${PR_NUMBER} .
       
-      - name: Run Tests
+      - name: Prepare for test
         run: |
+          echo ${ACCESS_TOKEN} | docker login ghcr.io -u USERNAME --password-stdin
+          
           docker-compose -f docker-compose.itest.yml up -d --force-recreate redis mongo zookeeper kafka seeder
-          sleep 5
+          sleep 3
           docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
           sleep 5
 
+      - name: Run test
+        run: |
           docker run --rm \
             --name tests \
             -e GATEWAY_URL='ws://gateway:8001/ws/api/v2' \
@@ -59,8 +63,9 @@ jobs:
             -e REDIS_HOST='redis' \
             -e REDIS_PORT='6379' \
             --network=test-network \
-            ${IMAGE_TAG}:pr-${PR_NUMBER}
+            ghcr.io/undercurrent-technologies/tests:dev
 
-          docker-compose down -v
+      - name: Cleanup
+        run: docker-compose down -v
 
           
