@@ -38,15 +38,15 @@ jobs:
           echo ${ACCESS_TOKEN} | docker login ghcr.io -u USERNAME --password-stdin
 
           docker-compose -f docker-compose.itest.yml up -d --force-recreate redis mongo zookeeper kafka
-          sleep 3
-          docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
           sleep 5
-
           docker run --rm --name seeder --network=test-network \
             -e NODE_ENV=development \
             -e MONGODB_URI="mongodb://root:root@mongo:27017" \
             -e MONGODB_DB_NAME=option_exchange \
             --rm  ghcr.io/undercurrent-technologies/seeder:dev -- user,balance
+          sleep 3
+          docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
+
 
       - name: Run test
         run: |
