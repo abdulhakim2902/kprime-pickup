@@ -9,18 +9,13 @@ import (
 	"pickup/datasources/kafka"
 	"pickup/datasources/mongo"
 	"pickup/service"
-	"strconv"
-	"time"
 
 	"github.com/Undercurrent-Technologies/kprime-utilities/commons/metrics"
 	"github.com/Undercurrent-Technologies/kprime-utilities/types"
 
 	"github.com/Undercurrent-Technologies/kprime-utilities/commons/logs"
 	"github.com/Undercurrent-Technologies/kprime-utilities/repository/mongodb"
-	"github.com/go-co-op/gocron"
 )
-
-const PICKUP logs.LoggerType = "PICKUP"
 
 var topics = []types.Topic{
 	types.ENGINE,
@@ -30,12 +25,14 @@ var topics = []types.Topic{
 }
 
 func Start() {
-	// Logger
-	logs.InitLogger(PICKUP)
-
 	// Initialize ENV
 	if err := app.LoadConfig(); err != nil {
 		logs.Log.Fatal().Err(err).Msg("Failed to load ENV!")
+	}
+
+	// Initialize Logger
+	if err := initLogger(); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
 
 	// Connect Database
@@ -49,31 +46,11 @@ func Start() {
 		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}
 
-	// Initialize Scheduler
-	loc, err := time.LoadLocation("Asia/Singapore")
-	if err != nil {
-		loc = time.UTC
-	}
-
-	i, err := strconv.Atoi(app.Config.MonitoringInterval)
-	if err != nil {
-		i = 1000
-	}
-
-	s := gocron.NewScheduler(loc)
-
 	// Initialize MongoDB Repository
 	r := mongodb.NewRepositories(mongo.Database)
 
 	// Initialize Service
 	ms := service.NewManagerService(k, r)
-	js := service.NewJobService(r)
-
-	// Register scheduler
-	s.Every(i).Milliseconds().Do(js.NonceMonitoring)
-
-	// Start scheduler
-	s.StartAsync()
 
 	// Subscribe to kafka
 	k.Subscribe(ms.HandlePickup)

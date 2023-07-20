@@ -81,7 +81,7 @@ func (js *JobService) fetchMatchingEngineNonce() (nonce float64) {
 	res, err := http.Get(url)
 	if err != nil {
 		if !isError {
-			logs.Log.Err(err).Msg("Matching engine is DISCONNECTED!")
+			logs.Log.Error().Err(err).Msg("Matching engine is DISCONNECTED!")
 			isError = true
 		}
 		return 0
@@ -99,14 +99,14 @@ func (js *JobService) fetchMatchingEngineNonce() (nonce float64) {
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		logs.Log.Err(err).Msg("Failed to read data!")
+		logs.Log.Error().Err(err).Msg("Failed to read data!")
 		return 0
 	}
 
 	result := map[string]interface{}{}
 	err = json.Unmarshal(data, &result)
 	if err != nil {
-		logs.Log.Err(err).Msg("Failed to decode data!")
+		logs.Log.Error().Err(err).Msg("Failed to decode data!")
 		return 0
 	}
 
