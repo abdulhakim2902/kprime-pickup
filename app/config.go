@@ -1,8 +1,8 @@
 package app
 
 import (
+	"os"
 	"path"
-	"runtime"
 
 	"github.com/Undercurrent-Technologies/kprime-utilities/commons/log"
 	"github.com/ilyakaznacheev/cleanenv"
@@ -45,15 +45,16 @@ type Scheduler struct {
 // The configuration file(s) should be named as app.yaml.
 // Environment variables with the prefix "RESTFUL_" in their names are also read automatically.
 func LoadConfig() error {
-	_, b, _, _ := runtime.Caller(0)
-	rootDir := path.Join(b, "../../")
-	err := godotenv.Load(path.Join(rootDir, ".env"))
+	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 
-	err = cleanenv.ReadEnv(&Config)
-	if err != nil {
+	if err = godotenv.Load(path.Join(wd, ".env")); err != nil {
+		logger.Info(".env not found, will use host environment variables")
+	}
+
+	if err = cleanenv.ReadEnv(&Config); err != nil {
 		return err
 	}
 

@@ -10,7 +10,7 @@ networks:
 
 services:
   pickup:
-    image: 'git.devucc.name:5050/undercurrent-tech/k-prime/pickup:dev'
+    image: 'ghcr.io/undercurrent-technologies/pickup:dev'
     container_name: 'pickup'
     build:
       context: .

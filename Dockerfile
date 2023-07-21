@@ -1,15 +1,28 @@
-FROM golang:1.19
+FROM golang:alpine AS builder
 
+ARG ACCESS_USER
 ARG ACCESS_TOKEN
 
-WORKDIR /go/src/app
+ENV GOPRIVATE=github.com/Undercurrent-Technologies/kprime-utilities
 
-COPY . .
+RUN apk add git
 
-RUN git config  --global url."https://oauth2:${ACCESS_TOKEN}@git.devucc.name".insteadOf "https://git.devucc.name"
+RUN git config --global url.https://${ACCESS_USER}:${ACCESS_TOKEN}@github.com/.insteadOf https://github.com
 
-RUN go get
+RUN mkdir /src
+ADD . /src
+WORKDIR /src
 
-RUN go build -o /pickup
+# RUN go mod tidy
 
-CMD ["/pickup"]
+RUN CGO_ENABLED=0 GOOS=linux go build -o pickup main.go
+
+FROM alpine:latest
+
+RUN apk add --no-cache tzdata
+ENV TZ=Asia/Singapore
+ENV IMAGE=true
+
+COPY --from=builder /src/pickup .
+
+CMD ["./pickup"]
