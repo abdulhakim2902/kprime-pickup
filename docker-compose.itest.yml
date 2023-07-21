@@ -8,13 +8,13 @@ networks:
 services:
   redis:
     image: redis
-    container_name: 'redis'
+    container_name: 'test_redis'
     networks:
       - test-network
 
   mongo: 
     image: 'mongo:latest'
-    container_name: 'mongo'
+    container_name: 'test_mongo'
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=root
@@ -23,7 +23,7 @@ services:
 
   zookeeper:
     image: 'bitnami/zookeeper:latest'
-    container_name: 'zookeeper'
+    container_name: 'test_zookeeper'
     environment:
       - ZOO_PORT_NUMBER=2181
       - ZOO_TICK_TIME=2000
@@ -32,8 +32,8 @@ services:
       - test-network
   
   kafka:
-    image: 'bitnami/kafka:latest'
-    container_name: 'kafka'
+    image: 'bitnami/kafka:3.4.0-debian-11-r21'
+    container_name: 'test_kafka'
     environment:
       - KAFKA_BROKER_ID=1
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
@@ -48,7 +48,7 @@ services:
   
   matching-engine:
     image: ghcr.io/undercurrent-technologies/matching-engine:dev
-    container_name: 'matching-engine'
+    container_name: 'test_matching-engine'
     environment:
       - NODE_ENV=development
       - SERVER_PORT=8002
@@ -66,7 +66,7 @@ services:
   
   pickup:
     image: ${IMAGE_TAG}:pr-${PR_NUMBER}
-    container_name: 'pickup'
+    container_name: 'test_pickup'
     environment:
       - NODE_ENV=development
       - SERVER_PORT=8003
@@ -75,14 +75,14 @@ services:
       - MONGO_URL=mongodb://root:root@mongo:27017
       - BROKER_URL=kafka:9092
       - MONITORING_INTERVAL=1000
-      - MATCHING_ENGINE_URL=matching-engine:8002
+      - MATCHING_ENGINE_URL=http://matching-engine:8002
       - NONCE_DIFF=20
     networks:
       - test-network
   
   gateway:
     image: ghcr.io/undercurrent-technologies/gateway:dev
-    container_name: 'gateway'
+    container_name: 'test_gateway'
     environment:
       - APP_ENV=development
       - PORT=8001
@@ -94,7 +94,7 @@ services:
       - DATA_DICTIONARY_PATH=/FIX44.xml
       - JWT_REMEMBER_TOKEN_EXPIRE=100000000
       - JWT_REMEMBER_REFRESH_TOKEN_EXPIRE=200000000
-      - MATCHING_ENGINE_URL=matching-engine:8002
+      - MATCHING_ENGINE_URL=http://matching-engine:8002
       - PROTECT_BASIC=*
       - PROTECT_IP_WHITELISTS=*
       - RATE_LIMITER_MAX_REQUESTS=100

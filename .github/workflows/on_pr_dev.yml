@@ -38,28 +38,34 @@ jobs:
             ghcr.io/undercurrent-technologies/seeder:dev -- user,balance
           sleep 3
           docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
+          sleep 10
+          docker-compose -f docker-compose.itest.yml logs --tail 10 gateway
+          docker-compose -f docker-compose.itest.yml logs --tail 10 matching-engine
+          docker-compose -f docker-compose.itest.yml logs --tail 10 pickup
+
+          docker network ls
 
 
       - name: Run test
         run: |
           docker run --rm \
             --name tests \
-            -e GATEWAY_URL='ws://gateway:8001/ws/api/v2' \
-            -e GATEWAY_URL_HTTP='http://gateway:8001/api/v2' \
-            -e GATEWAY_API_KEY='clientkey' \
-            -e GATEWAY_API_SECRET='clientsecret' \
-            -e GATEWAY_USER_ID='6498f6ce85637cdd331b082d' \
-            -e GATEWAY_API_KEY_MARKET='marketmakerkey' \
-            -e GATEWAY_API_SECRET_MARKET='marketmakersecret' \
-            -e GATEWAY_USER_ID_MARKET='6498f6cf85637cdd331b0832' \
-            -e ENGINE_URL='http://matching-engine:8002' \
-            -e MONGO_URL='mongodb://root:root@mongo:27017' \
-            -e MONGO_DB='option_exchange' \
-            -e MONGO_USERNAME='root' \
-            -e MONGO_PASSWORD='root' \
-            -e KAFKA_BROKER='kfaka:9092' \
-            -e REDIS_HOST='redis' \
-            -e REDIS_PORT='6379' \
+            -e GATEWAY_URL=ws://gateway:8001/ws/api/v2 \
+            -e GATEWAY_URL_HTTP=http://gateway:8001/api/v2 \
+            -e GATEWAY_API_KEY=clientkey \
+            -e GATEWAY_API_SECRET=clientsecret \
+            -e GATEWAY_USER_ID=6498f6ce85637cdd331b082d \
+            -e GATEWAY_API_KEY_MARKET=marketmakerkey \
+            -e GATEWAY_API_SECRET_MARKET=marketmakersecret \
+            -e GATEWAY_USER_ID_MARKET=6498f6cf85637cdd331b0832 \
+            -e ENGINE_URL=http://matching-engine:8002 \
+            -e MONGO_URL=mongodb://root:root@mongo:27017 \
+            -e MONGO_DB=option_exchange \
+            -e MONGO_USERNAME=root \
+            -e MONGO_PASSWORD=root \
+            -e KAFKA_BROKER=kfaka:9092 \
+            -e REDIS_HOST=redis \
+            -e REDIS_PORT=6379 \
             --network=test-network \
             ghcr.io/undercurrent-technologies/tests:dev
 
