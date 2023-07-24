@@ -26,6 +26,14 @@ import (
 
 var logger = log.Logger
 
+type PickupResult struct {
+	orders      []*order.Order
+	trades      []*trade.Trade
+	data        interface{}
+	nonce       int64
+	kafkaOffset int64
+}
+
 type ManagerService struct {
 	kafkaConn        *kafka.Kafka
 	repositories     *mongodb.Repositories
@@ -65,40 +73,29 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	go m.requestDurations.StartRequestDuration(msg.Topic, activityId.Hex())
 
 	// Initialize data
-	orders := []*order.Order{}
-	trades := []*trade.Trade{}
-
-	nonce := int64(0)
-
-	var data interface{}
-	var er *engine.EngineResponse
-	var co *order.CancelledOrder
-
+	var res *PickupResult
 	var err error
 
 	switch msg.Topic {
 	case types.ENGINE.String():
-		er, err = m.processEngine(msg)
-		orders, trades, err = m.validateOrders(er)
-		data = m.activityData(msg.Topic, er)
-		nonce = er.Nonce
+		res, err = m.processEngine(msg)
 	case types.CANCELLED_ORDER.String():
-		co, err = m.processCancelledOrders(msg)
-		data = m.activityData(msg.Topic, co)
-		orders = data.(map[string]interface{})["data"].([]*order.Order)
-		nonce = co.Nonce
+		res, err = m.processCancelledOrders(msg)
+	default:
+		return
 	}
 
 	if err != nil {
+		logs.Log.Error().Err(err).Msg("Failed processing order")
 		go m.kafkaConn.Commit(msg)
 		go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), false)
 		return
 	}
 
-	m.updateOrders(orders)
-	m.updateTrades(trades)
+	m.updateOrders(res.orders)
+	m.updateTrades(res.trades)
 	m.kafkaConn.Commit(msg)
-	m.insertActivity(activityId, data, nonce, msg.Offset)
+	m.insertActivity(activityId, res)
 	m.publishSaved(msg)
 
 	go m.requestDurations.EndRequestDuration(msg.Topic, activityId.Hex(), true)
@@ -106,75 +103,67 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 	return
 }
 
-func (m *ManagerService) processEngine(msg kafkago.Message) (e *engine.EngineResponse, err error) {
+func (m *ManagerService) processEngine(msg kafkago.Message) (res *PickupResult, err error) {
 	v := msg.Value
-	e = &engine.EngineResponse{}
+	e := &engine.EngineResponse{}
 	if err := json.Unmarshal(v, e); err != nil {
-		logs.Log.Error().Err(err).Msg("Failed to parse engine data!")
-
-		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, err
-		}
-
 		return nil, err
 	}
 
 	if e.Nonce <= 0 {
-		logs.Log.Error().Msg("Nonce less than equal zero!")
-
-		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, err
-		}
-
 		return nil, errors.New("NonceLessThanEqualZero")
 	}
 
-	return e, nil
+	if e.Status == types.ORDER_REJECTED {
+		return nil, errors.New("OrderRejected")
+	}
+
+	res = &PickupResult{
+		orders:      []*order.Order{},
+		trades:      []*trade.Trade{},
+		data:        e.Matches,
+		nonce:       e.Nonce,
+		kafkaOffset: msg.Offset,
+	}
+
+	if len(e.Matches.MakerOrders) > 0 {
+		res.orders = e.Matches.MakerOrders
+	}
+
+	if len(e.Matches.Trades) > 0 {
+		res.trades = e.Matches.Trades
+	}
+
+	if e.Matches.TakerOrder != nil {
+		res.orders = append(res.orders, e.Matches.TakerOrder)
+	}
+
+	return res, nil
 }
 
-func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (c *order.CancelledOrder, err error) {
+func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (res *PickupResult, err error) {
 	v := msg.Value
-	c = &order.CancelledOrder{}
+	c := &order.CancelledOrder{}
 	if err := json.Unmarshal(v, c); err != nil {
-		logs.Log.Error().Err(err).Msg("Failed to parse cancelled orders data!")
-		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, err
-		}
-
 		return nil, err
 	}
 
 	if c.Nonce <= 0 {
-		logs.Log.Error().Msg("Nonce less than equal zero!")
-
-		if err := m.kafkaConn.Commit(msg); err != nil {
-			return nil, err
-		}
-
 		return nil, errors.New("NonceLessThanEqualZero")
 	}
 
-	return c, nil
-}
-
-func (m *ManagerService) activityData(t string, r interface{}) (data interface{}) {
-	if r == nil {
-		return data
-	}
-
-	switch t {
-	case types.ENGINE.String():
-		e := r.(*engine.EngineResponse)
-		return e.Matches
-	case types.CANCELLED_ORDER.String():
-		c := r.(*order.CancelledOrder)
-		return map[string]interface{}{
+	res = &PickupResult{
+		orders: c.Data,
+		trades: []*trade.Trade{},
+		nonce:  c.Nonce,
+		data: map[string]interface{}{
 			"query": c.Query,
 			"data":  c.Data,
-		}
-	default:
-		return r
+		},
+		kafkaOffset: msg.Offset,
 	}
+
+	return res, nil
 }
 
 func (m *ManagerService) updateOrders(o []*order.Order) error {
@@ -213,11 +202,20 @@ func (m *ManagerService) updateTrades(t []*trade.Trade) error {
 func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	s := us.Side
 
-	o, _ := primitive.ObjectIDFromHex(us.UserID)
+	o, err := primitive.ObjectIDFromHex(us.UserID)
+	if err != nil {
+		logs.Log.Error().Err(err).Msg("Invalid userId")
+		return
+	}
 
 	i := t.OrderCode()
 	f := bson.M{"_id": o}
 	u := m.repositories.User.FindOne(f)
+	if u == nil {
+		logs.Log.Error().Any("userId", us.UserID).Msg("User not found")
+		return
+	}
+
 	p := t.GetAmount().Mul(decimal.NewFromFloat(t.Price))
 
 	for _, bal := range u.Collaterals.Balances {
@@ -264,33 +262,6 @@ func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
 	m.repositories.User.FindAndModify(f, bson.M{"$set": u})
 }
 
-func (m *ManagerService) validateOrders(e *engine.EngineResponse) (orders []*order.Order, trades []*trade.Trade, err error) {
-	orders = []*order.Order{}
-	trades = []*trade.Trade{}
-
-	if e == nil {
-		return nil, nil, errors.New("EngineNotFound")
-	}
-
-	if e.Status == types.ORDER_REJECTED {
-		return nil, nil, errors.New("OrderRejected")
-	}
-
-	if len(e.Matches.MakerOrders) > 0 {
-		orders = e.Matches.MakerOrders
-	}
-
-	if len(e.Matches.Trades) > 0 {
-		trades = e.Matches.Trades
-	}
-
-	if e.Matches.TakerOrder != nil {
-		orders = append(orders, e.Matches.TakerOrder)
-	}
-
-	return orders, trades, nil
-}
-
 func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	switch msg.Topic {
 	case types.ENGINE.String():
@@ -302,8 +273,8 @@ func (m *ManagerService) publishSaved(msg kafkago.Message) error {
 	}
 }
 
-func (m *ManagerService) insertActivity(id primitive.ObjectID, data interface{}, nonce, offset int64) error {
-	activity := &activity.Activity{ID: id, Nonce: nonce, KafkaOffset: offset, Data: data, CreatedAt: time.Now()}
+func (m *ManagerService) insertActivity(id primitive.ObjectID, res *PickupResult) error {
+	activity := &activity.Activity{ID: id, Nonce: res.nonce, KafkaOffset: res.kafkaOffset, Data: res.data, CreatedAt: time.Now()}
 
 	filter := bson.M{"_id": activity.ID}
 	update := bson.M{"$set": activity}
