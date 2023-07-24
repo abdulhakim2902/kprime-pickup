@@ -4,10 +4,10 @@ github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/RackSec/srslog v0.0.0-20180709174129-a4725f04ec91 h1:vX+gnvBc56EbWYrmlhYbFYRaeikAke1GL84N4BEYOFE=
 github.com/RackSec/srslog v0.0.0-20180709174129-a4725f04ec91/go.mod h1:cDLGBht23g0XQdLjzn6xOGXDkLK182YfINAaZEQLCHQ=
-github.com/Undercurrent-Technologies/kprime-utilities v1.1.7 h1:GR9ZMskV0XPCOOxDOtlLhwmABHmj1lNgzUdumNOFwJI=
-github.com/Undercurrent-Technologies/kprime-utilities v1.1.7/go.mod h1:726hW05V8VXH4JgR+qRjyrN2XaphDocq9X8WsCj8DAI=
 github.com/Undercurrent-Technologies/kprime-utilities v1.1.8 h1:xs5FplFYRT3MlmAX7GiXyEb3v1PlXwRXi0dqLBJffmI=
 github.com/Undercurrent-Technologies/kprime-utilities v1.1.8/go.mod h1:726hW05V8VXH4JgR+qRjyrN2XaphDocq9X8WsCj8DAI=
+github.com/Undercurrent-Technologies/kprime-utilities v1.1.9 h1:pyeunmi1DvWGeHGMauavvFbpVQAJqezkRUIqQdo213M=
+github.com/Undercurrent-Technologies/kprime-utilities v1.1.9/go.mod h1:726hW05V8VXH4JgR+qRjyrN2XaphDocq9X8WsCj8DAI=
 github.com/armon/go-proxyproto v0.0.0-20210323213023-7e956b284f0a h1:AP/vsCIvJZ129pdm9Ek7bH7yutN3hByqsMoNrWAxRQc=
 github.com/armon/go-proxyproto v0.0.0-20210323213023-7e956b284f0a/go.mod h1:QmP9hvJ91BbJmGVGSbutW19IC0Q9phDCLGaomwTJbgU=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
