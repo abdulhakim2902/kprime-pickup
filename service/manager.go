@@ -153,14 +153,14 @@ func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (res *Picku
 	}
 
 	res = &PickupResult{
-		orders: c.Data,
-		trades: []*trade.Trade{},
-		nonce:  c.Nonce,
+		orders:      c.Data,
+		trades:      []*trade.Trade{},
+		nonce:       c.Nonce,
+		kafkaOffset: msg.Offset,
 		data: map[string]interface{}{
 			"query": c.Query,
 			"data":  c.Data,
 		},
-		kafkaOffset: msg.Offset,
 	}
 
 	return res, nil
