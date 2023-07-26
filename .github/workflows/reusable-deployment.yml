@@ -1,0 +1,47 @@
+name: Reusable deployment pipeline
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+      - run: |
+          echo "The ${{ github.repository }} repository has been cloned to the runner."
+          echo "Job status - ${{ job.status }}."
+      - name: Create .env file
+        run: |
+          echo '${{ vars.ENV }}' > .env
+          echo "Job status - ${{ job.status }}."
+      - name: Install SSH keys
+        # check this thread to understand why its needed:
+        # https://stackoverflow.com/a/70447517
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
+          echo "Job status - ${{ job.status }}."
+      - name: Download packages
+        run: |
+          ${{ vars.PKG_INSTALL }}
+          echo "Job status - ${{ job.status }}."
+      - name: Build application
+        run: |
+          ${{ vars.PKG_BUILD }}
+          echo "Job status - ${{ job.status }}."
+      - name: Push files to server
+        run: |
+          ${{ vars.SYNC_CMD }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
+          sudo systemctl restart ${{ secrets.SERVICE_FILE }}
+          EOF
+          echo "Job status - ${{ job.status }}."
