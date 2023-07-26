@@ -54,7 +54,7 @@ jobs:
             -e GATEWAY_URL_HTTP=http://gateway:8001/api/v2 \
             -e GATEWAY_API_KEY=clientkey \
             -e GATEWAY_API_SECRET=clientsecret \
-           -e GATEWAY_USER_ID=64c07782a4f32335e3ef0819 \
+            -e GATEWAY_USER_ID=64c07782a4f32335e3ef0819 \
             -e GATEWAY_API_KEY_MARKET=marketmakerkey \
             -e GATEWAY_API_SECRET_MARKET=marketmakersecret \
             -e GATEWAY_USER_ID_MARKET=64c077bae3ec47506a1b563f \
