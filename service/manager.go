@@ -11,7 +11,7 @@ import (
 	"github.com/Undercurrent-Technologies/kprime-utilities/commons/log"
 	"github.com/Undercurrent-Technologies/kprime-utilities/commons/logs"
 	"github.com/Undercurrent-Technologies/kprime-utilities/models/activity"
-	"github.com/Undercurrent-Technologies/kprime-utilities/models/engine"
+	model "github.com/Undercurrent-Technologies/kprime-utilities/models/kafka"
 	"github.com/Undercurrent-Technologies/kprime-utilities/models/order"
 	"github.com/Undercurrent-Technologies/kprime-utilities/models/trade"
 	"github.com/Undercurrent-Technologies/kprime-utilities/models/user"
@@ -21,7 +21,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	kafkago "github.com/segmentio/kafka-go"
-	"github.com/shopspring/decimal"
 )
 
 var logger = log.Logger
@@ -105,7 +104,7 @@ func (m *ManagerService) HandlePickup(msg kafkago.Message) {
 
 func (m *ManagerService) processEngine(msg kafkago.Message) (res *PickupResult, err error) {
 	v := msg.Value
-	e := &engine.EngineResponse{}
+	e := &model.EngineResponse{}
 	if err := json.Unmarshal(v, e); err != nil {
 		return nil, err
 	}
@@ -143,7 +142,7 @@ func (m *ManagerService) processEngine(msg kafkago.Message) (res *PickupResult, 
 
 func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (res *PickupResult, err error) {
 	v := msg.Value
-	c := &order.CancelledOrder{}
+	c := &model.CancelledOrder{}
 	if err := json.Unmarshal(v, c); err != nil {
 		return nil, err
 	}
@@ -159,24 +158,19 @@ func (m *ManagerService) processCancelledOrders(msg kafkago.Message) (res *Picku
 		kafkaOffset: msg.Offset,
 		data: map[string]interface{}{
 			"query": c.Query,
-			"data":  c.Data,
 		},
 	}
 
 	return res, nil
 }
 
-func (m *ManagerService) updateOrders(o []*order.Order) error {
+func (m *ManagerService) updateOrders(o []*order.Order) {
 	for _, order := range o {
 		filter := bson.M{"_id": order.ID}
 		update := bson.M{"$set": order}
 
-		if _, err := m.repositories.Order.FindAndModify(filter, update); err != nil {
-			return err
-		}
+		m.repositories.Order.FindAndModify(filter, update)
 	}
-
-	return nil
 }
 
 func (m *ManagerService) updateTrades(t []*trade.Trade) error {
@@ -185,7 +179,7 @@ func (m *ManagerService) updateTrades(t []*trade.Trade) error {
 		update := bson.M{"$set": trade}
 
 		if _, err := m.repositories.Trade.FindAndModify(filter, update); err != nil {
-			return err
+			continue
 		}
 
 		if trade.Status == types.FAILED {
@@ -199,24 +193,18 @@ func (m *ManagerService) updateTrades(t []*trade.Trade) error {
 	return nil
 }
 
-func (m *ManagerService) updateUserCollateral(t *trade.Trade, us trade.User) {
+func (m *ManagerService) updateUserCollateral(t *trade.Trade, us *trade.User) {
 	s := us.Side
 
-	o, err := primitive.ObjectIDFromHex(us.UserID)
-	if err != nil {
-		logs.Log.Error().Err(err).Msg("Invalid userId")
-		return
-	}
-
 	i := t.OrderCode()
-	f := bson.M{"_id": o}
+	f := bson.M{"_id": us.UserID}
 	u := m.repositories.User.FindOne(f)
 	if u == nil {
 		logs.Log.Error().Any("userId", us.UserID).Msg("User not found")
 		return
 	}
 
-	p := t.GetAmount().Mul(decimal.NewFromFloat(t.Price))
+	p := t.GetAmount().Mul(t.GetPrice())
 
 	for _, bal := range u.Collaterals.Balances {
 		if bal.Currency != "USD" {
