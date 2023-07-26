@@ -3,12 +3,11 @@ module pickup
 go 1.20
 
 require (
-	github.com/Undercurrent-Technologies/kprime-utilities v1.1.11
+	github.com/Undercurrent-Technologies/kprime-utilities v1.1.12
 	github.com/ilyakaznacheev/cleanenv v1.4.2
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/segmentio/kafka-go v0.4.40
-	github.com/shopspring/decimal v1.3.1
 	go.mongodb.org/mongo-driver v1.11.6
 )
 
@@ -41,6 +40,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/solarwinds/papertrail-go v0.0.0-20210601025410-ab261ef9e67e // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
