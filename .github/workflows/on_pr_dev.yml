@@ -35,7 +35,7 @@ jobs:
             -e NODE_ENV=development \
             -e MONGODB_URI="mongodb://root:root@mongo:27017" \
             -e MONGODB_DB_NAME=option_exchange \
-            ghcr.io/undercurrent-technologies/seeder:dev -- user,balance
+            ghcr.io/undercurrent-technologies/seeder:latest -- user,balance
           sleep 3
           docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
           sleep 10
