@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Cleanup environment
+        run: |
+          docker-compose -f docker-compose.itest.yml down -v || true
+          docker system prune -f -a
+
       - name: Build App Image
         run: |
           docker build \
@@ -70,6 +75,8 @@ jobs:
             ghcr.io/undercurrent-technologies/tests:dev
 
       - name: Cleanup
-        run: docker-compose -f docker-compose.itest.yml down -v
+        run: |
+          docker-compose -f docker-compose.itest.yml down -v || true
+          docker system prune -f -a
 
           
