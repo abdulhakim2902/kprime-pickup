@@ -15,7 +15,7 @@ WORKDIR /src
 
 # RUN go mod tidy
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o pickup main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o pickup main.go
 
 FROM alpine:latest
 
