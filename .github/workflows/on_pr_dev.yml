@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: kprime-svr-dev-pickup
+    runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.number }}
       ACCESS_USER: ${{ secrets.ACCESS_USER }}
@@ -16,11 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Cleanup environment
-        run: |
-          docker-compose -f docker-compose.itest.yml down -v || true
-          docker system prune -f -a
 
       - name: Build App Image
         run: |
@@ -77,6 +72,6 @@ jobs:
       - name: Cleanup
         run: |
           docker-compose -f docker-compose.itest.yml down -v || true
-          docker system prune -f -a
+
 
           
