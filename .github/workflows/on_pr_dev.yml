@@ -1,11 +1,12 @@
 name: Build Image && Run Unit Test
 
 on:
-  pull_request:
-    branches: [ "development" ]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   build:
+    if: github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.number }}
