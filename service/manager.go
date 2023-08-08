@@ -44,7 +44,7 @@ type ManagerService struct {
 func NewManagerService(k *kafka.Kafka, r *mongodb.Repositories) ManagerService {
 	n := int64(0)
 	p := []bson.M{{"$sort": bson.M{"createdAt": -1}}, {"$limit": 1}}
-	acts := r.Activity.Aggregate(p)
+	acts, _ := r.Activity.Aggregate(p)
 	if len(acts) > 0 {
 		n = acts[0].Nonce
 	}
