@@ -16,6 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        - ACCESS_USER=${ACCESS_USER}
         - ACCESS_TOKEN=${ACCESS_TOKEN}
     networks:
       - database

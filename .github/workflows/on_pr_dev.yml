@@ -30,7 +30,7 @@ jobs:
         run: |
           echo ${ACCESS_TOKEN} | docker login ghcr.io -u USERNAME --password-stdin
 
-          docker-compose -f docker-compose.itest.yml up -d --force-recreate redis mongo zookeeper kafka
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml up -d --force-recreate redis mongo zookeeper kafka
           sleep 5
           docker run --rm --name seeder --network=test-network \
             -e NODE_ENV=development \
@@ -38,11 +38,11 @@ jobs:
             -e MONGODB_DB_NAME=option_exchange \
             ghcr.io/undercurrent-technologies/seeder:latest -- user,balance
           sleep 3
-          docker-compose -f docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
           sleep 10
-          docker-compose -f docker-compose.itest.yml logs --tail 10 gateway
-          docker-compose -f docker-compose.itest.yml logs --tail 10 matching-engine
-          docker-compose -f docker-compose.itest.yml logs --tail 10 pickup
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 gateway
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 matching-engine
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 pickup
 
           docker network ls
 
@@ -72,7 +72,7 @@ jobs:
 
       - name: Cleanup
         run: |
-          docker-compose -f docker-compose.itest.yml down -v || true
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml down -v || true
 
 
           
