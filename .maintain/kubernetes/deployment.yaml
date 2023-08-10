@@ -30,9 +30,15 @@ spec:
           - name: MONGO_DATABASE
             value: option_exchange
           - name: MONGO_URL
-            value: mongodb://root:root@host.docker.internal:27017
+            valueFrom:
+              secretKeyRef:
+                name: kprime-secret
+                key: MONGO_URL
           - name: BROKER_URL
-            value: host.docker.internal:19092
+            valueFrom:
+              secretKeyRef:
+                name: kprime-secret
+                key: BROKER_URL
           - name: LOG_WITH_PAPERTRAIL
             value: "false"
         resources:
