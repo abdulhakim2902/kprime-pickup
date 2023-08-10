@@ -1,0 +1,78 @@
+name: Build Image && Run Unit Test
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  build:
+    if: github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.number }}
+      ACCESS_USER: ${{ secrets.ACCESS_USER }}
+      ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      IMAGE_TAG: ghcr.io/undercurrent-technologies/pickup
+      GIT_TERMINAL_PROMPT: 1
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build App Image
+        run: |
+          docker build \
+            --build-arg ACCESS_USER=${ACCESS_USER} \
+            --build-arg ACCESS_TOKEN=${ACCESS_TOKEN} \
+            --build-arg UTITLITIES=kprime-utilities \
+            -t ${IMAGE_TAG}:pr-${PR_NUMBER} .
+      
+      - name: Prepare for test
+        run: |
+          echo ${ACCESS_TOKEN} | docker login ghcr.io -u USERNAME --password-stdin
+
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml up -d --force-recreate redis mongo zookeeper kafka
+          sleep 5
+          docker run --rm --name seeder --network=test-network \
+            -e NODE_ENV=development \
+            -e MONGODB_URI="mongodb://root:root@mongo:27017" \
+            -e MONGODB_DB_NAME=option_exchange \
+            ghcr.io/undercurrent-technologies/seeder:latest -- user,balance
+          sleep 3
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml up -d --force-recreate matching-engine pickup gateway
+          sleep 10
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 gateway
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 matching-engine
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml logs --tail 10 pickup
+
+          docker network ls
+
+
+      - name: Run test
+        run: |
+          docker run --rm \
+            --name tests \
+            -e GATEWAY_URL=ws://gateway:8001/ws/api/v2 \
+            -e GATEWAY_URL_HTTP=http://gateway:8001/api/v2 \
+            -e GATEWAY_API_KEY=clientkey \
+            -e GATEWAY_API_SECRET=clientsecret \
+            -e GATEWAY_USER_ID=64c07782a4f32335e3ef0819 \
+            -e GATEWAY_API_KEY_MARKET=marketmakerkey \
+            -e GATEWAY_API_SECRET_MARKET=marketmakersecret \
+            -e GATEWAY_USER_ID_MARKET=64c077bae3ec47506a1b563f \
+            -e ENGINE_URL=http://matching-engine:8002 \
+            -e MONGO_URL=mongodb://root:root@mongo:27017 \
+            -e MONGO_DB=option_exchange \
+            -e MONGO_USERNAME=root \
+            -e MONGO_PASSWORD=root \
+            -e KAFKA_BROKER=kfaka:9092 \
+            -e REDIS_HOST=redis \
+            -e REDIS_PORT=6379 \
+            --network=test-network \
+            ghcr.io/undercurrent-technologies/tests:dev
+
+      - name: Cleanup
+        run: |
+          docker-compose -f ./.maintain/docker/docker-compose.itest.yml down -v || true
+
+
+          

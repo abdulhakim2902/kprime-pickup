@@ -5,59 +5,84 @@ import (
 	"log"
 	"net/http"
 	"pickup/app"
+	"pickup/datasources/collector"
 	"pickup/datasources/kafka"
 	"pickup/datasources/mongo"
 	"pickup/service"
 
-	utilitiesLog "git.devucc.name/dependencies/utilities/commons/log"
-	"git.devucc.name/dependencies/utilities/repository/mongodb"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/metrics"
+	"github.com/Undercurrent-Technologies/kprime-utilities/types"
+
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/logs"
+	"github.com/Undercurrent-Technologies/kprime-utilities/repository/mongodb"
 )
 
-var logger = utilitiesLog.Logger
-var topics = "NEW_ORDER,ENGINE,ORDERBOOK,CANCELLED_ORDER"
+var topics = []types.Topic{
+	types.ENGINE,
+	types.CANCELLED_ORDER,
+	types.ENGINE_SAVED,
+	types.CANCELLED_ORDER_SAVED,
+}
 
 func Start() {
 	// Initialize ENV
-	err := app.LoadConfig()
-	if err != nil {
-		log.Fatal("Failed to load ENV")
+	if err := app.LoadConfig(); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to load ENV!")
+	}
+
+	// Initialize Logger
+	if err := initLogger(); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to initialize logger")
 	}
 
 	// Connect Database
-	db, err := mongo.InitConnection(app.Config.Mongo.URL)
-	if err != nil {
-		log.Fatal("Failed to initialize database!")
+	if err := mongo.InitConnection(app.Config.Mongo.URL); err != nil {
+		logs.Log.Fatal().Err(err).Msg("Failed to connect database!")
 	}
 
 	// Initialize Consumer
-	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics)
+	k, err := kafka.InitConnection(app.Config.Kafka.BrokerURL, topics...)
 	if err != nil {
-		log.Fatal("Failed to initialize kafka connection!", err)
+		logs.Log.Fatal().Err(err).Msg("Failed to connect kafka!")
 	}
 
-	// Initialize Repository
-	or := mongodb.NewOrderRepository(db)
-	tr := mongodb.NewTradeRepository(db)
-	ar := mongodb.NewActivityRepository(db)
+	// Initialize MongoDB Repository
+	r := mongodb.NewRepositories(mongo.Database)
 
 	// Initialize Service
-	managerService := service.NewManagerService(k, ar, or, tr)
+	ms := service.NewManagerService(k, r)
 
 	// Subscribe to kafka
-	k.Subscribe(managerService.HandlePickup)
+	k.Subscribe(ms.HandlePickup)
 
 	// Close kafka connection
 	k.CloseConnection()
 
 	// Run server
+	serveMetric()
 	run()
 }
 
 func run() {
-	port := fmt.Sprintf(":%v", app.Config.HTTP.Port)
-	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.Port)
+	port := fmt.Sprintf(":%v", app.Config.HTTP.ServerPort)
+	log.Printf("Server %v is running on localhost:%v\n", app.Version, app.Config.HTTP.ServerPort)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
-		log.Fatal(err)
+		logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port %s", app.Config.HTTP.ServerPort))
 	}
+}
+
+func serveMetric() {
+	go func() {
+		m := metrics.NewMetrics()
+		m.RegisterCollector(
+			collector.IncomingCounter,
+			collector.SuccessCounter,
+			collector.RequestDurationHistogram,
+		)
+
+		if err := m.Serve(); err != nil {
+			logs.Log.Fatal().Err(err).Msg(fmt.Sprintf("Failed to listen and serve on port%s!", app.Config.MetricsPort))
+		}
+	}()
 }

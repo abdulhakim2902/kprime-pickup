@@ -2,19 +2,14 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"git.devucc.name/dependencies/utilities/commons/log"
-	"git.devucc.name/dependencies/utilities/models/order"
+	"github.com/Undercurrent-Technologies/kprime-utilities/commons/log"
+	"github.com/Undercurrent-Technologies/kprime-utilities/types"
 
 	"github.com/segmentio/kafka-go"
 )
-
-type CancelledOrderData struct {
-	Query []*order.Order `json:"query"`
-	Data  []*order.Order `json:"data"`
-	Nonce int64          `json:"nonce"`
-}
 
 var logger = log.Logger
 var groupID = "gateway-group"
@@ -23,10 +18,8 @@ func InitConsumer(url string) *kafka.Reader {
 	config := kafka.ReaderConfig{
 		Brokers:        []string{url},
 		GroupID:        groupID,
-		GroupTopics:    []string{"ENGINE", "CANCELLED_ORDERS"},
-		MinBytes:       10e3, // 10KB
-		MaxBytes:       10e6, // 10MB
-		CommitInterval: time.Second,
+		GroupTopics:    []string{types.ENGINE.String(), types.CANCELLED_ORDER.String()},
+		CommitInterval: 10 * time.Millisecond,
 	}
 
 	return kafka.NewReader(config)
@@ -41,16 +34,46 @@ func (k *Kafka) Subscribe(cb func(kafka.Message)) {
 				continue
 			}
 
-			logger.Infof("Received messages from %v: %v", m.Topic, string(m.Value))
-
 			go cb(m)
 		}
 	}()
 }
 
-func (k *Kafka) Commit(msg kafka.Message) {
+func (k *Kafka) Commit(msg kafka.Message) error {
 	e := k.reader.CommitMessages(context.Background(), msg)
 	if e != nil {
 		logger.Errorf("Failed to commit message!")
+		return e
+	}
+
+	return nil
+}
+
+var status = false
+var startOffset int64
+var startTime time.Time
+
+func (k *Kafka) start(msg kafka.Message) {
+	if string(msg.Key) != "start" {
+		return
+	}
+
+	startTime = time.Now()
+	status = true
+	startOffset = msg.Offset
+}
+
+func (k *Kafka) end(msg kafka.Message) {
+	total := msg.Offset - startOffset + 1
+	if total%1000 != 0 {
+		return
+	}
+
+	if status {
+		fmt.Printf("consumer consumed %d messages at speed %.2f/s\n", total, float64(total)/time.Since(startTime).Seconds())
+	}
+
+	if string(msg.Key) == "end" {
+		status = false
 	}
 }

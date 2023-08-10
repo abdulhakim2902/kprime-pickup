@@ -1,0 +1,14 @@
+name: Deploy pipeline
+run-name: ${{ github.actor }} triggered deployment for development
+on:
+  push:
+    branches:
+      - development
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: Undercurrent-Technologies/kprime-pickup/.github/workflows/reusable-deployment.yml@development
+    with:
+      environment: development
+    secrets: inherit

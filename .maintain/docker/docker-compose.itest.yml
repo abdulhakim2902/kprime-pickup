@@ -1,0 +1,104 @@
+version: '3.9'
+
+networks:
+  test-network:
+    name: test-network
+    driver: bridge
+
+services:
+  redis:
+    image: redis
+    container_name: 'test_redis'
+    networks:
+      - test-network
+
+  mongo: 
+    image: 'mongo:latest'
+    container_name: 'test_mongo'
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+    networks:
+      - test-network
+
+  zookeeper:
+    image: 'bitnami/zookeeper:latest'
+    container_name: 'test_zookeeper'
+    environment:
+      - ZOO_PORT_NUMBER=2181
+      - ZOO_TICK_TIME=2000
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - test-network
+  
+  kafka:
+    image: 'bitnami/kafka:3.4.0-debian-11-r21'
+    container_name: 'test_kafka'
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    depends_on:
+      - zookeeper
+    networks:
+      - test-network
+  
+  matching-engine:
+    image: ghcr.io/undercurrent-technologies/matching-engine:dev
+    container_name: 'test_matching-engine'
+    environment:
+      - NODE_ENV=development
+      - SERVER_PORT=8002
+      - METRICS_PORT=2113
+      - MONGO_USER=root
+      - MONGO_PASSWORD=root
+      - MONGO_DATABASE=option_exchange
+      - MONGO_URL=mongodb://root:root@mongo:27017
+      - BROKER_URL=kafka:9092
+      - SYSTEM_INTERVAL=1000
+      - PROTECT_BASIC=*
+      - PROTECT_IP_WHITELISTS=*
+    networks:
+      - test-network
+  
+  pickup:
+    image: ${IMAGE_TAG}:pr-${PR_NUMBER}
+    container_name: 'test_pickup'
+    environment:
+      - NODE_ENV=development
+      - SERVER_PORT=8003
+      - METRICS_PORT=2114
+      - MONGO_DATABASE=option_exchange
+      - MONGO_URL=mongodb://root:root@mongo:27017
+      - BROKER_URL=kafka:9092
+      - MONITORING_INTERVAL=1000
+      - MATCHING_ENGINE_URL=http://matching-engine:8002
+      - NONCE_DIFF=20
+    networks:
+      - test-network
+  
+  gateway:
+    image: ghcr.io/undercurrent-technologies/gateway:dev
+    container_name: 'test_gateway'
+    environment:
+      - APP_ENV=development
+      - PORT=8001
+      - JWT_KEY=secret
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_URL=redis:6379
+      - MONGO_URL=mongodb://root:root@mongo:27017
+      - MONGO_DB=option_exchange
+      - DATA_DICTIONARY_PATH=/FIX44.xml
+      - JWT_REMEMBER_TOKEN_EXPIRE=100000000
+      - JWT_REMEMBER_REFRESH_TOKEN_EXPIRE=200000000
+      - MATCHING_ENGINE_URL=http://matching-engine:8002
+      - PROTECT_BASIC=*
+      - PROTECT_IP_WHITELISTS=*
+      - RATE_LIMITER_MAX_REQUESTS=100
+      - RATE_LIMITER_DURATION=1
+    networks:
+      - test-network
+

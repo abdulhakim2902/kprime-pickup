@@ -1,0 +1,43 @@
+stages:
+  - code_update
+  - install_packages
+  - build
+  - deploy
+
+pull_code_dev:
+  stage: code_update
+  script:
+    - cd $path_deploy && git stash && git fetch && git reset --hard $CI_COMMIT_SHA
+    - cd $path_deploy && cp ${env_dev} .env
+  only:
+    - development
+  tags:
+    - development
+
+install_packages_dev:
+  stage: install_packages
+  script:
+    - cd $path_deploy && go mod download
+  only:
+    - development
+  tags:
+    - development
+
+build_dev:
+  stage: build
+  script:
+    - cd $path_deploy && go build main.go
+  only:
+    - development
+  tags:
+    - development
+
+deploy_dev:
+  stage: deploy
+  script:
+    - sudo systemctl restart kprime-pickup.service
+  only:
+    - development
+  tags:
+    - development
+    

@@ -1,0 +1,32 @@
+name: Build Dev Image
+
+on:
+  push:
+    branches: [ "development" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ACCESS_USER: ${{ secrets.ACCESS_USER }}
+      ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      GOPRIVATE: github.com/Undercurrent-Technologies/kprime-utilities
+      IMAGE_TAG: ghcr.io/undercurrent-technologies/pickup:dev
+      GIT_TERMINAL_PROMPT: 1
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build App Image
+        run: |
+          docker build \
+            --build-arg ACCESS_USER=${ACCESS_USER} \
+            --build-arg ACCESS_TOKEN=${ACCESS_TOKEN} \
+            --build-arg UTITLITIES=kprime-utilities \
+            -t ${IMAGE_TAG} .
+
+      - name: Push image to registry
+        run: |
+          echo ${ACCESS_TOKEN} | docker login ghcr.io -u USERNAME --password-stdin
+          
+          docker push ${IMAGE_TAG}
