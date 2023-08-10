@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pickup-deployment
+  labels:
+    app: pickup
+spec:
+  revisionHistoryLimit: 1
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pickup
+  template:
+    metadata:
+      labels:
+        app: pickup
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      containers:
+      - name: pickup
+        image: ghcr.io/undercurrent-technologies/pickup:dev
+        env: 
+          - name: NODE_ENV
+            value: development
+          - name: SERVER_PORT
+            value: "8081"
+          - name: METRICS_PORT
+            value: "2114"
+          - name: MONGO_DATABASE
+            value: option_exchange
+          - name: MONGO_URL
+            value: mongodb://root:root@host.docker.internal:27017
+          - name: BROKER_URL
+            value: host.docker.internal:19092
+          - name: LOG_WITH_PAPERTRAIL
+            value: "false"
+        resources:
+          limits:
+            memory: 512Mi
+            cpu: "1"
+          requests:
+            memory: 256Mi
+            cpu: "0.2"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+        - containerPort: 2114

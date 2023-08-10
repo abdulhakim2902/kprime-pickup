@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+ name: pickup-service
+spec:
+ selector:
+   app: pickup
+ type: NodePort
+ ports:
+ - name: app
+   port: 8081
+   targetPort: 8081
+   nodePort: 32766
+ - name: metric
+   port: 2114
+   nodePort: 32763
